@@ -1,0 +1,18 @@
+<div class="contacts">
+  <div id="contacts-views" style="display:flex; gap:8px; margin-bottom:16px;">
+    <button class="contacts-view-btn" data-view="1" title="Тільки ромбики">Ava</button>
+    <button class="contacts-view-btn" data-view="2" title="Ромбик + ім'я/прізвище">Name</button>
+    <button class="contacts-view-btn" data-view="3" title="Міні-картка">Info</button>
+    <button class="contacts-view-btn" data-view="4" title="Повна картка">More<br>info 📋</button>
+  </div>
+  <div class="contacts-scroll" id="contacts-list">
+    <!-- Контакти будуть підвантажуватись сюди через JS -->
+  </div>
+  <div class="api-link-block" style="padding:16px 24px 8px 24px; border-top:1px solid #444; display:flex; align-items:center; gap:12px; font-size:0.95em; background:rgba(40,46,56,0.92);">
+    <span>API: </span>
+    <a id="api-link" href="/contacts" target="_blank" style="color:#4acaff; text-decoration:underline; word-break:break-all;">/contacts</a>
+    <button id="copy-api-link" title="Скопіювати посилання" style="margin-left:4px;">📋</button>
+    <button id="goto-api-link" title="Перейти за посиланням">➡️</button>
+    <span id="copy-success" style="margin-left:8px; color:#7fff7f; display:none;">Скопійовано!</span>
+  </div>
+</div>

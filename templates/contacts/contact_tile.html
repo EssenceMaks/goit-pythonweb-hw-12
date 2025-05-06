@@ -1,0 +1,20 @@
+<div class="contact-tile">
+  <div class="contact-tile-grid">
+    <div class="contact-avatar-diamond">{{ contact.first_name[0]|upper }}</div>
+    <div class="contact-tile-info">
+      <div class="contact-tile-name">{{ contact.first_name }} {{ contact.last_name }}</div>
+      <div class="contact-tile-birth">{{ contact.birthday or '' }}</div>
+      <div class="contact-tile-email">{{ contact.email }}</div>
+      <div class="contact-tile-phone">{% if contact.phone_numbers %}{{ contact.phone_numbers[0] }}{% else %}-{% endif %}</div>
+    </div>
+  </div>
+  <div class="contact-tile-actions" style="display:none;">
+    <button class="edit-contact">Редагувати</button>
+    <button class="delete-contact">Видалити</button>
+    <button class="details-contact">Деталі</button>
+  </div>
+  <div class="contact-tile-extra" style="display:none;">
+    <div class="contact-tile-phones-additional"></div>
+    <div class="contact-tile-extra-preview"></div>
+  </div>
+</div>

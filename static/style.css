@@ -1,0 +1,120 @@
+body {
+  background: #181d23;
+  margin: 0;
+  font-family: 'Segoe UI', Arial, sans-serif;
+}
+
+.form-row {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 10px;
+  gap: 2px;
+}
+.form-row input,
+.form-row textarea,
+.form-row select {
+  padding: 7px 10px;
+  border-radius: 7px;
+  border: 1px solid #3a3e5b;
+  background: #232735;
+  color: #203ad1;
+  font-size: 1em;
+}
+.form-row input[type="date"] {
+  min-width: 0;
+}
+.phone-input-wrap {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.phone-input-wrap input[type="tel"] {
+  flex: 2;
+}
+.phone-input-wrap select {
+  flex: 1;
+  min-width: 90px;
+}
+.phone-input-wrap .remove-phone-btn {
+  background: none;
+  border: none;
+  color: #e57373;
+  font-size: 1.3em;
+  cursor: pointer;
+  padding: 0 6px;
+}
+.groups-row {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+.popup-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+
+.main-container {
+  max-width: 1100px;
+  margin: 40px auto;
+  background: rgba(34, 39, 46, 0.75);
+  border-radius: 24px;
+  box-shadow: 0 8px 40px 0 rgba(0,0,0,0.45);
+  padding: 0;
+  overflow: hidden;
+  backdrop-filter: blur(18px);
+  border: 1.5px solid rgba(255,255,255,0.09);
+}
+.grid {
+  display: grid;
+  grid-template-columns: 220px 1fr 1fr 1fr;
+  grid-template-rows: 100px 1fr 150px;
+  gap: 0;
+  min-height: 600px;
+  max-height: calc(100% - 80px);
+}
+.sort {
+  grid-row: 1 / 2;
+  grid-column: 2 / 5;
+  background: #f0f4f8;
+  padding: 18px 32px;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid #e0e4e8;
+}
+.contacts {
+  grid-row: 2 / 3;
+  grid-column: 2 / 5;
+  background: rgba(40, 46, 56, 0.92);
+  border-radius: 18px;
+  box-shadow: 0 2px 16px 0 rgba(0, 0, 0, 0.32);
+  margin: 0;
+  padding: 0;
+  color: #e9eaf0;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.contacts-scroll {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  min-height: 0;
+  height: calc(100vh - 500px);
+}
+body.popup-open > *:not(.popup) {
+  pointer-events: none !important;
+  user-select: none;
+  filter: blur(1.5px) grayscale(0.2);
+  z-index: 0 !important;
+}
+body.popup-open .popup {
+  z-index: 1001 !important;
+}
+body.popup-open {
+  overflow: hidden;
+}

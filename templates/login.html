@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="glass-container">
+    <form method="post" action="/login">
+        <h2>Login</h2>
+        <p>Please login to access our services</p>
+        <input type="text" name="username" placeholder="User Name" required>
+        <div class="password-wrapper">
+            <input type="password" name="password" placeholder="Password" id="password-input" required>
+            <span class="toggle-password" onclick="togglePassword()">
+                <svg width="20" height="20" viewBox="0 0 20 20"><path d="M10 3C5 3 1.73 7.11 1 10c.73 2.89 4 7 9 7s8.27-4.11 9-7c-.73-2.89-4-7-9-7zm0 12c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8a3 3 0 100 6 3 3 0 000-6z" fill="#aaa"/></svg>
+            </span>
+        </div>
+        <div class="remember-me">
+            <input type="checkbox" name="remember">
+            <label>Remember me</label>
+        </div>
+        <button type="submit" class="login-btn">Login</button>
+        <a href="/forgot" class="forgot-link">Forgot Password?</a>
+        <div class="signup-link">Don't have an account? <a href="/signup">Signup</a></div>
+    </form>
+</div>
+<script>
+function togglePassword() {
+    var input = document.getElementById('password-input');
+    if (input.type === 'password') {
+        input.type = 'text';
+    } else {
+        input.type = 'password';
+    }
+}
+</script>
+{% endblock %}

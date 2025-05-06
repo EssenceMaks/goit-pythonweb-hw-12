@@ -1,0 +1,63 @@
+<div class="menu">
+  <script>
+    window.selectedUserId = "{{ user.id }}";
+    window.userRole = "{{ user.role }}";
+    window.currentUserId = "{{ user.id }}";
+    window.currentUsername = "{{ user.username }}";
+    window.currentEmail = "{{ user.email }}";
+  </script>
+  
+  <!-- Account dropdown section -->
+  <div class="account-section">
+    <div class="account-dropdown">
+      <span class="account-label">login: {{ user.email[:15] + '...' if user.email|length > 15 else user.email }}</span>
+      <span class="dropdown-arrow">▼</span>
+      <div class="dropdown-content">
+        <a href="/login" class="add-login-link">Add Login</a>
+      </div>
+    </div>
+  </div>
+  
+  <!-- User avatar section -->
+  <div class="avatar-section">
+    {% if user.avatar %}
+      <img src="{{ user.avatar }}" alt="User Avatar" class="user-avatar" />
+    {% else %}
+      {% if user.role == 'superadmin' %}
+        <img src="/static/menu/img/s_admin.jfif" alt="Super Admin Avatar" class="user-avatar" />
+      {% elif user.role == 'admin' %}
+        <img src="/static/menu/img/admin.jfif" alt="Admin Avatar" class="user-avatar" />
+      {% else %}
+        <img src="/static/menu/img/avatar.png" alt="User Avatar" class="user-avatar" />
+      {% endif %}
+    {% endif %}
+  </div>
+  
+  <!-- User info section -->
+  <div class="user-info">
+    <span class="username">{{ user.username }}</span>
+    <span class="userrole">Роль: {{ user.role }}</span>
+  </div>
+  
+  <!-- Settings section -->
+  <div class="settings-section">
+    <a href="/settings" class="settings-link">Налаштування</a>
+    <a href="#" id="permissions-link" class="permissions-link" style="display: none; margin-top: 10px;">Permissions</a>
+  </div>
+  
+  <!-- Main actions section -->
+  <div class="actions-section">
+    <button id="btn-create-contact">Створити контакт</button>
+    <button id="btn-fill">Створити випадкові контакти</button>
+    {% if user.role == 'superadmin' %}
+      <button id="btn-clear">Видалити всі контакти</button>
+      <button id="btn-create-db">Створити шаблон бази</button>
+      <button id="btn-drop-db">Видалити базу</button>
+    {% endif %}
+  </div>
+  
+  <!-- Logout section -->
+  <div class="logout-section">
+    <a href="/logout" class="logout-link">Вийти</a>
+  </div>
+</div>

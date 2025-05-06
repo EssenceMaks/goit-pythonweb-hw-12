@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Контакти | FastAPI</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/menu/menu.css">
+  <link rel="stylesheet" href="/static/contacts/contacts.css">
+  <link rel="stylesheet" href="/static/filter/filter.css">
+  <link rel="stylesheet" href="/static/popups/popups.css">
+  <link rel="stylesheet" href="/static/footer/footer.css">
+  <link rel="stylesheet" href="/static/user_settings/user_settings.css">
+  
+  <!-- Подключаем авторизационный скрипт первым для всех страниц -->
+  <script src="/static/auth.js"></script>
+</head>
+<body>
+  <div id="db-status-block" style="margin: 0.5em 0; font-weight: bold;"></div>
+  <div class="main-container">
+    <div class="grid">
+      {% include 'menu/menu.html' %}
+      <div class="sort">
+        <input type="text" id="contact-search" class="contact-search" placeholder="Пошук..." autocomplete="off" style="margin-right:1em;max-width:180px;">
+        <b>Сортування:</b>
+
+      </div>
+      {% include 'contacts/contacts.html' %}
+      {% include 'footer/footer.html' %}
+    </div>
+  </div>
+  {% include 'popups/full_contact_popup.html' %}
+  {% include 'popups/contact_form.html' %}
+  {% include 'popups/confirm_delete.html' %}
+  
+  <!-- Налаштування користувача динамічно генеруються через JavaScript -->
+ 
+  <!-- Скрипты должны быть подключены после авторизационного скрипта -->
+  <script src="/static/app.js"></script>
+  <script src="/static/menu/menu.js"></script>
+  <script src="/static/contacts/contacts.js"></script>
+  <script src="/static/filter/filter.js"></script>
+  <script src="/static/popups/popups.js"></script>
+  <script src="/static/footer/footer.js"></script>
+  <!-- Спочатку підключаємо файл для роботи з аватарами -->
+  <script src="/static/user_settings/user_avatar_settings.js"></script>
+  <!-- Потім основний файл налаштувань користувача -->
+  <script src="/static/user_settings/user_settings.js"></script>
+  
+  <script>
+    // Инициализируем роль пользователя для скриптов
+    window.userRole = "{{ user.role if user and user.role else 'user' }}";
+    console.log('User role:', window.userRole);
+    
+    // Передаємо ID поточного користувача для перевірки на самозміну ролей
+    window.currentUserId = "{{ user.id if user and user.id else '' }}";
+    console.log('Current user ID:', window.currentUserId);
+    
+    // Додаємо інформацію про токен для налагодження
+    document.addEventListener('DOMContentLoaded', function() {
+      console.log('Cookie є:', document.cookie.includes('access_token'));
+      
+      if (typeof authorizedFetch === 'function') {
+        console.log('authorizedFetch успешно загружен');
+      } else {
+        console.error('authorizedFetch не загружен!');
+      }
+    });
+  </script>
+</body>
+</html>

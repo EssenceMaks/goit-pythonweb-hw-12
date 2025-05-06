@@ -1,0 +1,127 @@
+body {
+    background: #18104b;
+    min-height: 100vh;
+    margin: 0;
+    font-family: 'Segoe UI', Arial, sans-serif;
+}
+.centered-bg {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    position: relative;
+    z-index: 1;
+}
+.glass-container {
+    background: rgba(120, 100, 160, 0.2);
+    border-radius: 24px;
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    padding: 40px 32px 32px 32px;
+    min-width: 340px;
+    max-width: 360px;
+    color: #fff;
+    position: relative;
+    z-index: 2;
+}
+.glass-container h2 {
+    margin-top: 0;
+    font-size: 2rem;
+    margin-bottom: 10px;
+}
+.glass-container form {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+.glass-container input[type="text"],
+.glass-container input[type="email"],
+.glass-container input[type="password"] {
+    background: rgba(255,255,255,0.08);
+    border: none;
+    border-radius: 8px;
+    padding: 12px;
+    color: #fff;
+    font-size: 1rem;
+    outline: none;
+    margin-bottom: 4px;
+}
+.glass-container input[type="text"]::placeholder,
+.glass-container input[type="email"]::placeholder,
+.glass-container input[type="password"]::placeholder {
+    color: #bbb;
+}
+.glass-container .login-btn {
+    background: linear-gradient(90deg, #ffb347 0%, #ff5e62 100%);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 1rem;
+    font-weight: bold;
+    cursor: pointer;
+    margin-top: 8px;
+    transition: background 0.2s;
+}
+.glass-container .login-btn:hover {
+    background: linear-gradient(90deg, #ff5e62 0%, #ffb347 100%);
+}
+.password-wrapper {
+    position: relative;
+}
+.toggle-password {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: pointer;
+    opacity: 0.7;
+}
+.toggle-password:hover {
+    opacity: 1;
+}
+.remember-me {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.forgot-link {
+    color: #ffb347;
+    text-decoration: none;
+    font-size: 0.95rem;
+    margin-top: 4px;
+    align-self: flex-end;
+}
+.signup-link {
+    margin-top: 10px;
+    text-align: center;
+    font-size: 0.97rem;
+}
+.signup-link a {
+    color: #ffb347;
+    text-decoration: none;
+}
+/* Glassy colored circles */
+.centered-bg::before, .centered-bg::after {
+    content: '';
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(32px);
+    z-index: 0;
+}
+.centered-bg::before {
+    width: 320px;
+    height: 320px;
+    left: -80px;
+    top: -60px;
+    background: radial-gradient(circle at 40% 40%, #b97cff 60%, transparent 100%);
+}
+.centered-bg::after {
+    width: 220px;
+    height: 220px;
+    right: -60px;
+    bottom: -40px;
+    background: radial-gradient(circle at 60% 60%, #ffcd70 60%, transparent 100%);
+}

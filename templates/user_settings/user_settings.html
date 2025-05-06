@@ -1,0 +1,120 @@
+<!-- Шаблон для сторінки налаштувань користувача в стекляному стилі -->
+<div class="user-settings-container" id="settings-container">
+  <div class="settings-header">
+    <button id="back-to-contacts-btn" class="back-btn">← Повернутися до контактів</button>
+    <br>
+    <br>
+    <h2>Налаштування користувача</h2>
+  </div>
+  
+  <div class="settings-form">
+    <div class="settings-row">
+      <div class="settings-label">Email:</div>
+      <div class="settings-value" id="user-email"></div>
+      <div class="settings-action">
+        <span class="email-note">(Змінити неможливо)</span>
+      </div>
+    </div>
+    
+    <div class="settings-row">
+      <div class="settings-label">Ім'я користувача:</div>
+      <div class="settings-value" id="user-username"></div>
+      <div class="settings-action">
+        <button class="edit-username-btn">Редагувати</button>
+      </div>
+    </div>
+    
+    <div class="settings-row">
+      <div class="settings-label">Пароль:</div>
+      <div class="settings-value">••••••••</div>
+      <div class="settings-action">
+        <button class="edit-password-btn">Змінити пароль</button>
+        <button class="reset-password-btn">Скинути пароль</button>
+      </div>
+    </div>
+    
+    <div class="settings-row" id="avatar-row">
+      <div class="settings-label">Аватар:</div>
+      <div class="settings-value">
+        <div class="avatar-preview">
+          <img id="user-avatar" src="/static/menu/img/user_1.png" alt="Аватар користувача">
+        </div>
+        <div class="user_avatar_cloudinary">
+          <!-- Здесь будет отображаться галерея аватаров -->
+        </div>
+      </div>
+      <div class="settings-action">
+        <button class="upload-avatar-btn">Додати аватар</button>
+        <button class="change-avatar-btn">Керувати аватарами</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Шаблон попапа для зміни пароля в стекляному стилі -->
+<div id="popup-change-password-template" style="display: none;">
+  <div id="popup-change-password" class="popup glass-popup">
+    <div class="popup-content">
+      <h2>Зміна пароля</h2>
+      <form id="change-password-form">
+        <div class="form-group">
+          <label for="current-password">Поточний пароль:</label>
+          <div class="password-wrapper">
+            <input type="password" id="current-password" class="settings-input" required>
+            <span class="toggle-password" onclick="togglePasswordVisibility('current-password')">👁️</span>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="new-password">Новий пароль:</label>
+          <div class="password-wrapper">
+            <input type="password" id="new-password" class="settings-input" required minlength="6">
+            <span class="toggle-password" onclick="togglePasswordVisibility('new-password')">👁️</span>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="confirm-password">Підтвердіть новий пароль:</label>
+          <div class="password-wrapper">
+            <input type="password" id="confirm-password" class="settings-input" required minlength="6">
+            <span class="toggle-password" onclick="togglePasswordVisibility('confirm-password')">👁️</span>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="save-btn">Змінити пароль</button>
+          <button type="button" class="cancel-btn" onclick="closePopup('popup-change-password')">Скасувати</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Шаблон попапа для зміни імені користувача -->
+<div id="popup-edit-username-template" style="display: none;">
+  <div id="popup-edit-username" class="popup glass-popup">
+    <div class="popup-content">
+      <h2>Редагування імені</h2>
+      <form id="edit-username-form">
+        <div class="form-group">
+          <label for="new-username">Нове ім'я користувача:</label>
+          <input type="text" id="new-username" class="settings-input" required>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="save-btn">Зберегти</button>
+          <button type="button" class="cancel-btn" onclick="closePopup('popup-edit-username')">Скасувати</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Permissions Modal for Admins -->
+<div id="permissions-modal" class="popup glass-popup" style="display:none;">
+  <div class="popup-content">
+    <h2>Запити на аватарки</h2>
+    <div id="permissions-table-container">
+      <!-- Таблица заявок будет подгружаться через JS -->
+    </div>
+    <div class="form-actions">
+      <button type="button" class="cancel-btn" onclick="closePermissionsModal()">Закрити</button>
+    </div>
+  </div>
+</div>

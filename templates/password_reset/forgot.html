@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Забули пароль{% endblock %}
+
+{% block content %}
+<div class="glass-container">
+    <form method="post" action="/forgot">
+        <h2>Відновлення пароля</h2>
+        <p>Введіть вашу адресу електронної пошти для відновлення пароля</p>
+        
+        {% if error %}
+            <div class="error-message">{{ error }}</div>
+        {% endif %}
+        
+        {% if success %}
+            <div class="success-message">{{ success }}</div>
+        {% endif %}
+        
+        <input type="email" name="email" placeholder="Ваша електронна пошта" required>
+        <button type="submit" class="login-btn">Відправити</button>
+        
+        <div class="login-link">Згадали пароль? <a href="/login">Увійти</a></div>
+    </form>
+</div>
+{% endblock %}

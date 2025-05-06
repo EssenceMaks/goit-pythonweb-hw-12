@@ -1,0 +1,281 @@
+/* Стили для контактов */
+.contacts {
+  background: rgba(40, 46, 56, 0.92);
+  border-radius: 18px;
+  box-shadow: 0 2px 16px 0 rgba(0,0,0,0.32);
+  margin: 20px 0 20px 0;
+  padding: 32px;
+  color: #e9eaf0;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+/* Меньше island-плитки и текста, мягкий рандомный фон */
+.contact-tile-wrapper {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.contact-tile {
+  position: relative !important;
+  z-index: 1;
+  color: #f5f6fa;
+  margin-bottom: 18px;
+  padding: 16px;
+  cursor: pointer;
+  max-width: 350px;
+  border-radius: 16px;
+  box-shadow: 0 1px 8px 0 rgba(0,0,0,0.14);
+  border: none;
+  transition: box-shadow 0.2s, background 0.2s;
+  overflow: visible;
+  /* По умолчанию каждый контакт на новой строке */
+  display: block;
+}
+
+/* Стили для режимов просмотра 1 и 2 - контакты в строку */
+[data-view-mode="1"] .contact-tile,
+[data-view-mode="2"] .contact-tile {
+  display: inline-block;
+  margin-right: 10px;
+  vertical-align: top;
+}
+
+/* Стили для режимов просмотра 3 и 4 - контакты в столбец */
+[data-view-mode="3"] .contact-tile,
+[data-view-mode="4"] .contact-tile {
+  display: block;
+}
+
+/* Небольшие дополнительные стили для удобства отображения в строку */
+[data-view-mode="1"] .contact-tile-mini,
+[data-view-mode="2"] .contact-tile-mini {
+  margin-bottom: 10px;
+  padding: 12px;
+}
+
+/* Остальные стили остаются без изменений */
+
+.contact-tile-border {
+  position: absolute !important;
+  top: -3px !important; left: -3px !important; right: -3px !important; bottom: -3px !important;
+  border-radius: 19px !important;
+  z-index: 0;
+  pointer-events: none;
+  transition: background 0.25s, opacity 0.25s;
+  opacity: 1;
+  border: none !important;
+}
+
+/* Цвета для карточек и бордера (одинаковые классы) */
+.tile-color-1 { background: #3e3a5e !important; }
+.tile-color-2 { background: #4b3f72 !important; }
+.tile-color-3 { background: #5c5270 !important; }
+.tile-color-4 { background: #364f6b !important; }
+.tile-color-5 { background: #3b3f58 !important; }
+.tile-color-6 { background: #6a67ce !important; }
+.tile-color-7 { background: #00c9a7 !important; }
+.tile-color-8 { background: #23272f !important; }
+
+.border-color-1 { background: #3e3a5e; }
+.border-color-2 { background: #4b3f72; }
+.border-color-3 { background: #5c5270; }
+.border-color-4 { background: #364f6b; }
+.border-color-5 { background: #3b3f58; }
+.border-color-6 { background: #6a67ce; }
+.border-color-7 { background: #00c9a7; }
+.border-color-8 { background: #23272f; }
+
+.contact-tile:hover .contact-tile-border,
+.contact-tile.selected .contact-tile-border {
+  background: linear-gradient(270deg, #27ef8c, #29e6f6, #3b6cf6, #27ef8c);
+  background-size: 400% 400%;
+  animation: border-rainbow-border 3s linear infinite;
+  opacity: 1;
+}
+
+@keyframes border-rainbow-border {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 100% 50%; }
+}
+
+.contact-tile > *:not(.contact-tile-border) {
+  position: relative;
+  z-index: 1;
+}
+
+.contact-tile.selected,
+.contact-tile:hover {
+  box-shadow: none;
+}
+
+.contact-tile-grid {
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+  align-items: flex-start;
+}
+.contact-avatar-diamond {
+  width: 38px;
+  height: 38px;
+  background: linear-gradient(135deg, #434d5a 60%, #181d23 100%);
+  color: #fff;
+  font-size: 1.3rem;
+  font-weight: 400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  transform: rotate(45deg);
+  margin-right: 3px;
+  box-shadow: 0 1px 5px #0007;
+}
+.contact-avatar-diamond span {
+  transform: rotate(-45deg);
+  display: block;
+}
+.contact-tile-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0px;
+  min-width: 120px;
+}
+.contact-tile-name {
+  font-size: 0.92rem;
+  font-weight: 500;
+  margin-bottom: 1px;
+}
+.contact-tile-birth, .contact-tile-email, .contact-tile-phone {
+  font-size: 0.82rem;
+  opacity: 0.88;
+  margin-bottom: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.contact-tile-actions {
+  margin-top: 10px;
+  display: flex;
+  gap: 7px;
+  justify-content: flex-start;
+}
+.contact-tile-actions button {
+  background: #23272f;
+  border: none;
+  border-radius: 6px;
+  color: #e2e6ed;
+  padding: 4px 12px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  box-shadow: 0 1px 4px 0 rgba(0,0,0,0.10);
+  transition: background 0.2s, color 0.2s;
+  font-weight: 400;
+}
+.contact-tile-actions button:hover {
+  background: #4a90e2;
+  color: #fff;
+}
+.contact-tile-extra {
+  margin-top: 6px;
+  color: #b6d5fa;
+  font-size: 0.83rem;
+}
+.contact-tile-phones-additional {
+  margin-bottom: 2px;
+}
+.contact-tile-extra-preview {
+  color: #fff;
+  font-style: italic;
+  opacity: 0.85;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Стили для кнопки смены роли пользователя */
+.change-role-btn {
+  margin-left: 10px;
+  padding: 4px 8px;
+  font-size: 12px;
+  background-color: #4a5568;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.change-role-btn:hover {
+  background-color: #2d3748;
+}
+
+rt {
+color: #1f2235; 
+color: #2c2f3f; 
+color: #3a3e5b; 
+color: #454b66; 
+color: #2e3c49; 
+color: #38404e; 
+color: #313745; 
+color: #4a5568; 
+color: #3f4856; 
+color: #525c6e;  
+}
+
+/* Стили для отображения дней рождения по пользователям */
+.user-birthday-header {
+  background: rgba(35, 41, 55, 0.5);
+  padding: 10px 15px;
+  border-radius: 10px;
+  margin-bottom: 10px;
+  border-left: 3px solid #4a90e2;
+}
+
+.user-birthday-header h3 {
+  margin: 0 0 5px 0;
+  font-size: 1.1em;
+  color: #e2e8f0;
+}
+
+.user-info {
+  font-size: 0.9em;
+  opacity: 0.9;
+}
+
+.birthday-section {
+  margin: 10px 0;
+  padding-left: 10px;
+}
+
+.birthday-section b {
+  color: #e2e8f0;
+}
+
+.birthday-section ul {
+  margin-top: 5px;
+  padding-left: 25px;
+}
+
+.birthday-section li {
+  margin-bottom: 5px;
+  position: relative;
+}
+
+.birthday-section button.show-info-btn {
+  font-size: 12px;
+  padding: 2px 8px;
+  background-color: #4a5568;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-left: 5px;
+  vertical-align: middle;
+  transition: background-color 0.2s ease;
+}
+
+.birthday-section button.show-info-btn:hover {
+  background-color: #2d3748;
+}

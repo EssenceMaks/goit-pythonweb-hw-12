@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Auth{% endblock %}</title>
+    <link rel="stylesheet" href="/static/auth_glass.css">
+    <!-- Подключаем авторизационный скрипт первым -->
+    <script src="/static/auth.js"></script>
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <div class="centered-bg">
+        {% block content %}{% endblock %}
+    </div>
+    
+    {% block scripts %}{% endblock %}
+</body>
+</html>

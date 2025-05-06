@@ -1,0 +1,56 @@
+<div class="popup" id="popup-create-contact" style="display:none;">
+  <div class="popup-glass">
+    <div class="popup-header-gradient">
+      <span class="popup-header-gallery">фото</span>
+    </div>
+    <div class="popup-avatar-diamond">
+      <span id="contact-avatar-letter">A</span>
+    </div>
+    <form id="create-contact-form" autocomplete="off">
+  <div class="form-row">
+    <input type="text" name="first_name" required maxlength="198" placeholder="Ім'я*">
+    <div class="field-error" data-field="first_name"></div>
+  </div>
+  <div class="form-row">
+    <input type="text" name="last_name" maxlength="198" placeholder="Прізвище">
+    <div class="field-error" data-field="last_name"></div>
+  </div>
+  <div class="form-row">
+    <input type="email" name="email" required maxlength="198" placeholder="Електронна адреса*">
+    <div class="field-error" data-field="email"></div>
+  </div>
+  <div class="form-row">
+    <input type="date" name="birthday" required placeholder="День народження*">
+    <div class="field-error" data-field="birthday"></div>
+  </div>
+  <button type="button" id="add-phone-btn" class="add-btn" data-init="1">+ Додати номер</button>
+  <div id="phones-list"></div>
+  <div class="form-row groups-row">
+    <input type="text" name="groups" placeholder="Групи (через кому)" readonly>
+    <button type="button" id="add-group-btn" class="add-btn">+</button>
+    <div class="field-error" data-field="groups"></div>
+  </div>
+  <div id="groups-list"></div>
+  <div class="form-row">
+    <textarea name="extra_info" maxlength="500" placeholder="Додаткові дані"></textarea>
+    <div class="field-error" data-field="extra_info"></div>
+  </div>
+  <div class="popup-actions">
+    <button type="submit">Зберегти</button>
+    <button type="button" onclick="closePopup('popup-create-contact')">Відміна</button>
+  </div>
+  <div class="popup-album-labels">
+    <span class="album-label">фотоальбом (буде пізніше)</span>
+    <span class="avatar-label">аватарки (буде пізніше)</span>
+  </div>
+</form>
+  </div>
+</div>
+
+<script>
+document.addEventListener('input', function(e) {
+  if (e.target.matches('input[type="tel"]')) {
+    e.target.value = e.target.value.replace(/[^0-9+\-()#* ]/g, '');
+  }
+});
+</script>

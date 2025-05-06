@@ -1,0 +1,330 @@
+/* Стили для меню */
+
+.menu {
+    grid-row: 1 / span 3;
+    grid-column: 1 / 2;
+    background: rgba(36, 42, 52, 0.92);
+    color: #3a53d1;
+    padding: 24px 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    border-radius: 18px;
+    box-shadow: 0 2px 16px 0 rgba(0,0,0,0.32);
+    margin: 20px 16px 20px 20px;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.08);
+}
+
+.menu h2 {
+    font-size: 1.2rem;
+    margin-bottom: 18px;
+    font-weight: 600;
+    color: #e2e6ed;
+}
+
+.menu button {
+    margin-bottom: 12px;
+    padding: 10px 8px;
+    border: none;
+    border-radius: 10px;
+    background: rgba(80,180,255,0.11);
+    color: #e2e6ed;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+    box-shadow: 0 1px 4px 0 rgba(0,0,0,0.15);
+    font-weight: 500;
+}
+
+.menu button:last-child {
+    margin-bottom: 0;
+}
+
+.menu button:hover {
+    background: #4a90e2;
+    color: #fff;
+}
+
+/* Стили для раздела аккаунта */
+.account-section {
+    margin-bottom: 15px;
+}
+
+.account-dropdown {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px;
+    background-color: rgba(80, 180, 255, 0.15);
+    border-radius: 10px;
+    cursor: pointer;
+    position: relative;
+    transition: background 0.2s;
+}
+
+.account-dropdown:hover {
+    background-color: rgba(80, 180, 255, 0.25);
+}
+
+.account-label {
+    font-size: 0.9rem;
+    color: #e2e6ed;
+}
+
+.dropdown-arrow {
+    font-size: 12px;
+    color: #e2e6ed;
+}
+
+.dropdown-content {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 100%;
+    background-color: rgba(36, 42, 52, 0.95);
+    box-shadow: 0px 8px 16px rgba(0, 0, 0, 0.3);
+    z-index: 1;
+    padding: 10px;
+    border-radius: 8px;
+    margin-top: 5px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Убираем автоматическое отображение по ховеру */
+/* .account-dropdown:hover .dropdown-content {
+    display: block;
+} */
+
+/* Добавляем класс для JS-переключения */
+.dropdown-content.show {
+    display: block;
+}
+
+.add-login-link {
+    color: #5fb2ff;
+    text-decoration: none;
+    display: block;
+    padding: 8px;
+    text-align: center;
+    border-radius: 6px;
+    transition: background 0.2s, color 0.2s;
+}
+
+.add-login-link:hover {
+    background-color: rgba(80, 180, 255, 0.2);
+    color: #ffffff;
+}
+
+/* Стили для элементов выпадающего меню аккаунтов */
+.account-item {
+    padding: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    border-radius: 6px;
+    margin-bottom: 5px;
+    transition: background-color 0.2s;
+}
+
+.account-item:hover {
+    background-color: rgba(80, 180, 255, 0.2);
+}
+
+.account-item.active-account {
+    background-color: rgba(80, 180, 255, 0.25);
+    cursor: default;
+}
+
+.account-info {
+    flex: 1;
+}
+
+.account-name {
+    font-size: 0.9rem;
+    font-weight: bold;
+    color: #e2e6ed;
+    margin-bottom: 3px;
+}
+
+.account-role {
+    font-size: 0.8rem;
+    color: #a9b3c1;
+}
+
+.current-marker {
+    color: #4CAF50;
+    font-weight: bold;
+    margin-left: 8px;
+}
+
+.dropdown-divider {
+    height: 1px;
+    background-color: rgba(255, 255, 255, 0.1);
+    margin: 8px 0;
+}
+
+/* Стили для раздела аватара */
+.avatar-section {
+    display: flex;
+    justify-content: center;
+    margin: 10px 0 15px 0;
+}
+
+.user-avatar {
+    width: 156px;
+    height: auto;
+    border-radius: 5px;
+    background-color: rgba(74, 144, 226, 0.25);
+    padding: 5px;
+    border: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Стили для информации о пользователе */
+.user-info {
+    text-align: center;
+    margin-bottom: 15px;
+}
+
+.username {
+    font-weight: bold;
+    font-size: 1.1em;
+    color: #e2e6ed;
+    display: block;
+    margin-bottom: 5px;
+}
+
+.userrole {
+    display: block;
+    font-size: 0.9em;
+    color: #a9b3c1;
+}
+
+/* Стили для раздела настроек */
+.settings-section {
+    margin: 15px 0;
+}
+
+.settings-link {
+    display: block;
+    text-align: center;
+    color: #ffb347;
+    text-decoration: none;
+    padding: 8px;
+    border-radius: 8px;
+    background-color: rgba(255, 179, 71, 0.1);
+    transition: background 0.2s, color 0.2s;
+}
+
+.settings-link:hover {
+    background-color: rgba(255, 179, 71, 0.2);
+    color: #ffc876;
+}
+
+/* Стили для раздела действий */
+.actions-section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin: 20px 0;
+}
+
+.actions-section button {
+    width: 100%;
+}
+
+/* Стили для раздела выхода */
+.logout-section {
+    margin-top: 25px;
+    text-align: center;
+}
+
+.logout-link {
+    color: #ff6b6b;
+    font-weight: bold;
+    text-decoration: none;
+    padding: 8px 12px;
+    border-radius: 8px;
+    display: inline-block;
+    background-color: rgba(255, 107, 107, 0.1);
+    transition: background 0.2s, color 0.2s;
+}
+
+.logout-link:hover {
+    background-color: rgba(255, 107, 107, 0.2);
+    color: #ff8c8c;
+}
+
+/* --- Стили для модального окна Permissions --- */
+.modal.permissions-modal {
+    display: none;
+    position: fixed;
+    z-index: 10000;
+    left: 0;
+    top: 0;
+    width: 100vw;
+    height: 100vh;
+    overflow: auto;
+    background: rgba(20, 24, 33, 0.65);
+    justify-content: center;
+    align-items: center;
+}
+.modal.permissions-modal[style*="display: block"] {
+    display: flex !important;
+}
+.modal.permissions-modal .modal-content {
+    background: #232b3b;
+    margin: auto;
+    padding: 32px 24px 24px 24px;
+    border-radius: 16px;
+    width: 90%;
+    max-width: 600px;
+    color: #e2e6ed;
+    box-shadow: 0 4px 32px 0 rgba(0,0,0,0.4);
+    position: relative;
+}
+.modal.permissions-modal .close-modal {
+    position: absolute;
+    top: 16px;
+    right: 20px;
+    font-size: 2rem;
+    color: #aaa;
+    cursor: pointer;
+}
+.permissions-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 16px;
+    background: none;
+}
+.permissions-table th, .permissions-table td {
+    padding: 8px 6px;
+    text-align: left;
+    border-bottom: 1px solid #38405a;
+}
+.permissions-table th {
+    background: #2a3142;
+    color: #7cc3fa;
+    font-weight: 600;
+}
+.permissions-table tr:hover {
+    background: #22304a;
+}
+.permissions-table img {
+    vertical-align: middle;
+}
+.permissions-table button {
+    padding: 4px 10px;
+    border-radius: 7px;
+    border: none;
+    background: #3a53d1;
+    color: #fff;
+    cursor: pointer;
+    font-size: 0.95rem;
+    margin-left: 5px;
+}
+.permissions-table button:hover {
+    background: #4a90e2;
+}

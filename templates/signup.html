@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="glass-container">
+    <form id="signup-form">
+        <h2>Sign Up</h2>
+        <input type="text" name="username" placeholder="User Name" required>
+        <input type="email" name="email" placeholder="Email" required>
+        <div class="password-wrapper">
+            <input type="password" name="password" placeholder="Password" id="signup-password-input" required>
+            <span class="toggle-password" onclick="toggleSignupPassword()">
+                <svg width="20" height="20" viewBox="0 0 20 20"><path d="M10 3C5 3 1.73 7.11 1 10c.73 2.89 4 7 9 7s8.27-4.11 9-7c-.73-2.89-4-7-9-7zm0 12c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8a3 3 0 100 6 3 3 0 000-6z" fill="#aaa"/></svg>
+            </span>
+        </div>
+        <button type="submit" class="login-btn">Sign Up</button>
+        <div class="signup-link">Already have an account? <a href="/login">Login</a></div>
+    </form>
+    <div id="verify-block" style="display:none; margin-top:20px;">
+        <h3>Подтвердите email</h3>
+        <input id="verify-email" placeholder="Email">
+        <input id="verify-code" placeholder="Код з листа">
+        <button id="verify-btn">Подтвердить</button>
+    </div>
+</div>
+<script>
+function toggleSignupPassword() {
+    var input = document.getElementById('signup-password-input');
+    if (input.type === 'password') {
+        input.type = 'text';
+    } else {
+        input.type = 'password';
+    }
+}
+
+document.getElementById('signup-form').onsubmit = async function(e) {
+    e.preventDefault();
+    const fd = new FormData(this);
+    const resp = await fetch('/auth/register', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+            username: fd.get('username'),
+            email: fd.get('email'),
+            password: fd.get('password')
+        })
+    });
+    if (resp.ok) {
+        document.getElementById('verify-block').style.display = '';
+        document.getElementById('verify-email').value = fd.get('email');
+        alert('Перевірте пошту і введіть код!');
+    } else {
+        const data = await resp.json();
+        alert(data.detail || 'Помилка реєстрації');
+    }
+};
+document.getElementById('verify-btn').onclick = async function() {
+    const email = document.getElementById('verify-email').value;
+    const code = document.getElementById('verify-code').value;
+    const resp = await fetch('/auth/verify', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({email, code})
+    });
+    if (resp.ok) {
+        alert('Email подтвержден! Теперь можно войти.');
+        window.location.href = '/login';
+    } else {
+        const data = await resp.json();
+        alert(data.detail || 'Неправильний код');
+    }
+};
+</script>
+{% endblock %}

@@ -1,0 +1,42 @@
+services:
+  # Web service
+  - type: web
+    name: contacts-app
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PORT
+        value: 8000
+      - key: PYTHON_VERSION
+        value: 3.9.7
+    # Остальные переменные окружения нужно добавить через интерфейс Render
+    
+  # Postgres database
+  - type: pserv
+    name: contacts-db
+    env: docker
+    plan: starter
+    repo: https://github.com/render-examples/postgres
+    envVars:
+      - key: POSTGRES_USER
+        fromService:
+          name: contacts-app
+          type: web
+          envVarKey: DB_USER
+      - key: POSTGRES_PASSWORD
+        fromService:
+          name: contacts-app
+          type: web
+          envVarKey: DB_PASSWORD
+      - key: POSTGRES_DB
+        fromService:
+          name: contacts-app
+          type: web
+          envVarKey: DB_NAME
+          
+  # Redis service для rate limiting
+  - type: redis
+    name: contacts-redis
+    ipAllowList: []
+    plan: starter

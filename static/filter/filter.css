@@ -1,0 +1,34 @@
+/* Стили для фильтра */
+.sort {
+  background: rgba(44, 50, 60, 0.92);
+  border-radius: 14px;
+  box-shadow: 0 2px 12px 0 rgba(0,0,0,0.22);
+  padding: 18px 32px;
+  display: flex;
+  align-items: center;
+  border: 1px solid rgba(255,255,255,0.07);
+  margin: 20px 0 20px 0;
+  color: #f0f4fa;
+  gap: 12px;
+  backdrop-filter: blur(8px);
+}
+.sort-filters {
+  display: flex;
+  gap: 10px;
+}
+.sort-btn {
+  background: rgba(80,180,255,0.13);
+  color: #e2e6ed;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 20px;
+  font-size: 1rem;
+  cursor: pointer;
+  box-shadow: 0 1px 4px 0 rgba(0,0,0,0.13);
+  transition: background 0.2s, color 0.2s;
+  font-weight: 500;
+}
+.sort-btn.active, .sort-btn:hover {
+  background: #4a90e2;
+  color: #fff;
+}
