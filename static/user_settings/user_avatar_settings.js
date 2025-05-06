@@ -71,7 +71,8 @@ async function loadUserAvatars() {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${accessToken}`
-      }
+      },
+      cache: 'no-store' // всегда свежие данные
     });
     
     if (!response.ok) {
@@ -100,37 +101,36 @@ async function loadUserAvatars() {
 function displayUserAvatars(avatars) {
   const avatarsContainer = document.querySelector('.user_avatar_cloudinary');
   if (!avatarsContainer) return;
-  
+
   // Показываем контейнер аватаров по умолчанию
   avatarsContainer.classList.add('show-avatars');
-  
+
   // Создаем структуру для отображения аватаров
   avatarsContainer.innerHTML = `
     <div class="avatars-gallery">
       ${avatars.length === 0 ? '<p class="no-avatars">У вас нет загруженных аватаров</p>' : ''}
     </div>
   `;
-  
+
   const avatarsGallery = avatarsContainer.querySelector('.avatars-gallery');
   if (!avatarsGallery || avatars.length === 0) return;
-  
+
   avatars.forEach(avatar => {
     const avatarElement = document.createElement('div');
     avatarElement.className = 'avatar-item';
     avatarElement.dataset.id = avatar.id;
-    if (avatar.is_main) {
-      avatarElement.classList.add('main-avatar');
-    }
-    
+    if (avatar.is_main && avatar.is_approved) avatarElement.classList.add('main-avatar');
     let actionHtml = '';
-    if (avatar.is_main) {
+    // --- Новая логика отображения статусов ---
+    if (avatar.is_main && avatar.is_approved) {
       actionHtml = '<span class="main-badge">Основний</span>';
-    } else if (!avatar.is_approved) {
-      actionHtml = '<span class="pending-badge">На перевірці</span>';
+    } else if (avatar.request_status === 'pending') {
+      actionHtml = `<span class="pending-badge" data-id="${avatar.id}" title="На перевірці">На перевірці</span>`;
+    } else if (avatar.request_status === 'rejected') {
+      actionHtml = `<span class="rejected-badge">Відхилено</span><button class="set-main-avatar-btn" data-id="${avatar.id}">Зробити основним</button>`;
     } else {
       actionHtml = `<button class="set-main-avatar-btn" data-id="${avatar.id}">Зробити основним</button>`;
     }
-    
     avatarElement.innerHTML = `
       <img src="${avatar.file_path}" alt="Аватар пользователя">
       <div class="avatar-actions">
@@ -138,78 +138,36 @@ function displayUserAvatars(avatars) {
         <button class="delete-avatar-btn" data-id="${avatar.id}">Видалити</button>
       </div>
     `;
-    
     avatarsGallery.appendChild(avatarElement);
   });
-  
-  // Добавляем обработчики событий для кнопок
+
+  // Кнопки "Сделать основным"
   document.querySelectorAll('.set-main-avatar-btn').forEach(btn => {
     btn.addEventListener('click', function(e) {
       e.stopPropagation();
-      setMainAvatar(this.dataset.id);
+      requestMainAvatar(this.dataset.id);
     });
   });
-  
+  // Кнопки удаления
   document.querySelectorAll('.delete-avatar-btn').forEach(btn => {
     btn.addEventListener('click', function(e) {
       e.stopPropagation();
       deleteAvatar(this.dataset.id);
     });
   });
-  
-  // Также добавляем возможность выбрать аватар кликом по нему
-  document.querySelectorAll('.avatar-item img').forEach(img => {
-    img.addEventListener('click', function(e) {
+  // Pending badge: кастомный попап подтверждения
+  document.querySelectorAll('.pending-badge').forEach(badge => {
+    badge.addEventListener('mouseenter', function() {
+      this.innerHTML = '<span class="cancel-pending-btn" style="cursor:pointer;color:#c00;">відмінити запит</span>';
+    });
+    badge.addEventListener('mouseleave', function() {
+      this.textContent = 'На перевірці';
+    });
+    badge.addEventListener('click', function(e) {
       e.stopPropagation();
-      const avatarId = this.closest('.avatar-item').dataset.id;
-      if (!this.closest('.avatar-item').classList.contains('main-avatar')) {
-        highlightSelectedAvatar(avatarId);
-      }
+      showCancelPendingPopup(this, this.dataset.id);
     });
   });
-  
-  // Изменяем текст кнопки управления аватарами
-  const changeAvatarBtn = document.querySelector('.change-avatar-btn');
-  if (changeAvatarBtn) {
-    changeAvatarBtn.textContent = 'Змінити аватар';
-  }
-}
-
-/**
- * Подсвечивает выбранный аватар и активирует кнопку изменения
- * @param {string} avatarId - ID выбранного аватара
- */
-function highlightSelectedAvatar(avatarId) {
-  // Удаляем класс выбранного аватара со всех аватаров кроме основного
-  document.querySelectorAll('.avatar-item:not(.main-avatar)').forEach(item => {
-    item.classList.remove('selected-avatar');
-  });
-  
-  // Добавляем класс выбранного аватара к текущему
-  const selectedAvatar = document.querySelector(`.avatar-item[data-id="${avatarId}"]`);
-  if (selectedAvatar) {
-    selectedAvatar.classList.add('selected-avatar');
-  }
-  
-  // Активируем кнопку изменения аватара
-  const changeAvatarBtn = document.querySelector('.change-avatar-btn');
-  if (changeAvatarBtn) {
-    changeAvatarBtn.classList.add('active');
-    changeAvatarBtn.textContent = 'Зробити основним';
-    changeAvatarBtn.dataset.selectedId = avatarId;
-    
-    // Добавляем обработчик клика для кнопки изменения
-    changeAvatarBtn.onclick = function(e) {
-      e.stopPropagation();
-      const selectedId = this.dataset.selectedId;
-      if (selectedId) {
-        setMainAvatar(selectedId);
-        this.classList.remove('active');
-        this.textContent = 'Змінити аватар';
-        delete this.dataset.selectedId;
-      }
-    };
-  }
 }
 
 /**
@@ -447,6 +405,67 @@ function updateDashboardUserProfile() {
 }
 
 /**
+ * Новый алгоритм: отправить запрос на установку основного (старые pending удаляются автоматически)
+ * @param {string} avatarId - ID аватара
+ */
+async function requestMainAvatar(avatarId) {
+  try {
+    showLoading(true, 'Запрос на модерацию...');
+    const accessToken = getAccessToken();
+    const response = await fetch(`/users/avatars/${avatarId}/request-main`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${accessToken}` }
+    });
+    showLoading(false);
+    if (!response.ok) throw new Error('Ошибка отправки запроса');
+    if (typeof showNotification === 'function') {
+      showNotification('Запит відправлено на перевірку', 'success');
+    } else if (typeof addFooterMessage === 'function') {
+      addFooterMessage('Запит відправлено на перевірку', 'success');
+    }
+    loadUserAvatars();
+  } catch (error) {
+    showLoading(false);
+    if (typeof showNotification === 'function') {
+      showNotification('Помилка відправки запиту', 'error');
+    } else if (typeof addFooterMessage === 'function') {
+      addFooterMessage('Помилка відправки запиту', 'error');
+    }
+  }
+}
+
+/**
+ * Отмена pending-запроса
+ * @param {string} avatarId - ID аватара
+ */
+async function cancelPendingRequest(avatarId) {
+  if (!confirm('Відмінити запит на цю аватарку?')) return;
+  try {
+    showLoading(true, 'Відміна запиту...');
+    const accessToken = getAccessToken();
+    const response = await fetch(`/users/avatar-requests/${avatarId}/cancel`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${accessToken}` }
+    });
+    showLoading(false);
+    if (!response.ok) throw new Error('Ошибка отмены запроса');
+    if (typeof showNotification === 'function') {
+      showNotification('Запит відмінено', 'success');
+    } else if (typeof addFooterMessage === 'function') {
+      addFooterMessage('Запит відмінено', 'success');
+    }
+    loadUserAvatars();
+  } catch (error) {
+    showLoading(false);
+    if (typeof showNotification === 'function') {
+      showNotification('Помилка відміни запиту', 'error');
+    } else if (typeof addFooterMessage === 'function') {
+      addFooterMessage('Помилка відміни запиту', 'error');
+    }
+  }
+}
+
+/**
  * Устанавливает аватар как основной
  * @param {string} avatarId - ID аватара
  */
@@ -577,4 +596,49 @@ async function deleteAvatar(avatarId) {
       addFooterMessage('Помилка видалення аватара', 'error');
     }
   }
+}
+
+/**
+ * Показывает кастомный попап подтверждения отмены pending-запроса
+ * @param {HTMLElement} badgeEl - элемент badge
+ * @param {string} avatarId - ID аватара
+ */
+function showCancelPendingPopup(badgeEl, avatarId) {
+  // Удаляем уже существующий попап, если есть
+  document.querySelectorAll('.pending-cancel-popup').forEach(p => p.remove());
+  const popup = document.createElement('div');
+  popup.className = 'pending-cancel-popup';
+  popup.style.position = 'absolute';
+  popup.style.zIndex = '1000';
+  popup.style.background = '#fff';
+  popup.style.border = '1px solid #ddd';
+  popup.style.borderRadius = '6px';
+  popup.style.boxShadow = '0 2px 8px rgba(0,0,0,0.12)';
+  popup.style.padding = '10px 16px';
+  popup.style.fontSize = '15px';
+  popup.innerHTML = `Ви впевнені?<br><div style="margin-top:8px;display:flex;gap:10px;justify-content:center"><button class="pending-cancel-yes">Так</button><button class="pending-cancel-no">Відміна</button></div>`;
+  // Позиционируем попап относительно badge
+  const rect = badgeEl.getBoundingClientRect();
+  popup.style.left = `${rect.left + window.scrollX}px`;
+  popup.style.top = `${rect.bottom + window.scrollY + 4}px`;
+  document.body.appendChild(popup);
+  // Обработчики
+  popup.querySelector('.pending-cancel-yes').onclick = function(e) {
+    e.stopPropagation();
+    popup.remove();
+    cancelPendingRequest(avatarId);
+  };
+  popup.querySelector('.pending-cancel-no').onclick = function(e) {
+    e.stopPropagation();
+    popup.remove();
+  };
+  // Закрытие при клике вне попапа
+  setTimeout(() => {
+    document.addEventListener('mousedown', function handler(ev) {
+      if (!popup.contains(ev.target)) {
+        popup.remove();
+        document.removeEventListener('mousedown', handler);
+      }
+    });
+  }, 10);
 }

@@ -182,6 +182,7 @@ async def get_user_avatars(
             "file_path": avatar.file_path,
             "is_main": avatar.is_main == 1,
             "is_approved": avatar.is_approved == 1,
+            "request_status": avatar.request_status,
             "created_at": avatar.created_at
         }
         for avatar in avatars
@@ -203,40 +204,33 @@ async def upload_user_avatar(
         url, public_id = upload_image(await file.read())
         if not url or not public_id:
             raise HTTPException(status_code=500, detail="Failed to upload avatar")
-        # Для админов — сразу approved
+        # Для админов — сразу approved и основным
         if current_user.role in ["admin", "superadmin"]:
             is_approved = 1
             request_status = 'approved'
+            is_main = 1
         else:
             is_approved = 0
-            request_status = 'pending'
+            request_status = None
+            is_main = 0
         new_avatar = UserAvatar(
             user_id=current_user.id,
             file_path=url,
             cloudinary_public_id=public_id,
             is_approved=is_approved,
+            is_main=is_main,
             request_type='upload',
             request_status=request_status
         )
         db.add(new_avatar)
         db.commit()
         db.refresh(new_avatar)
-        # Для обычных пользователей создаём заявку
-        if current_user.role not in ["admin", "superadmin"]:
-            msg = AvatarRequestMessage(
-                user_id=current_user.id,
-                avatar_id=new_avatar.id,
-                message="Upload new avatar",
-                status='pending',
-                created_at=datetime.utcnow()
-            )
-            db.add(msg)
-            db.commit()
         return {
             "id": new_avatar.id,
             "file_path": new_avatar.file_path,
             "is_main": new_avatar.is_main == 1,
             "is_approved": new_avatar.is_approved == 1,
+            "request_status": new_avatar.request_status,
             "message": "Avatar uploaded successfully"
         }
     except Exception as e:
@@ -259,9 +253,12 @@ async def set_avatar_as_main(
     ).first()
     if not avatar:
         raise HTTPException(status_code=404, detail="Avatar not found or not owned by user")
+    # Сбросить pending/approved/rejected у всех аватарок пользователя
+    db.query(UserAvatar).filter(UserAvatar.user_id == current_user.id).update({
+        "request_status": None,
+        "is_main": 0
+    })
     if current_user.role in ["admin", "superadmin"]:
-        # Для админов — сразу делаем основным
-        db.query(UserAvatar).filter(UserAvatar.user_id == current_user.id).update({"is_main": 0})
         avatar.is_main = 1
         avatar.is_approved = 1
         avatar.request_status = 'approved'
@@ -273,6 +270,11 @@ async def set_avatar_as_main(
     avatar.is_main = 0  # Не делаем основным до одобрения
     avatar.is_approved = 0
     db.commit()
+    # Сбросить все pending-заявки в AvatarRequestMessage
+    db.query(AvatarRequestMessage).filter(
+        AvatarRequestMessage.user_id == current_user.id,
+        AvatarRequestMessage.status == 'pending'
+    ).delete()
     # Создаём заявку
     msg = AvatarRequestMessage(
         user_id=current_user.id,
@@ -284,75 +286,6 @@ async def set_avatar_as_main(
     db.add(msg)
     db.commit()
     return {"message": "Request to set avatar as main sent for approval"}
-
-@router.delete("/avatars/{avatar_id}")
-async def delete_user_avatar(
-    request: Request,
-    avatar_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    Удалить аватар пользователя
-    """
-    # Проверяем, существует ли аватар и принадлежит ли он пользователю
-    avatar = db.query(UserAvatar).filter(
-        UserAvatar.id == avatar_id,
-        UserAvatar.user_id == current_user.id
-    ).first()
-    
-    if not avatar:
-        raise HTTPException(status_code=404, detail="Avatar not found or not owned by user")
-    
-    # Если удаляемый аватар был основным, нужно выбрать другой аватар как основной
-    was_main = avatar.is_main == 1
-    
-    # Если у аватара есть public_id в Cloudinary, удаляем изображение из Cloudinary
-    if hasattr(avatar, 'cloudinary_public_id') and avatar.cloudinary_public_id:
-        delete_image(avatar.cloudinary_public_id)
-    
-    # Удаляем из базы данных
-    db.delete(avatar)
-    db.commit()
-    
-    # Если удаленный аватар был основным, устанавливаем следующий доступный как основной
-    if was_main:
-        next_avatar = db.query(UserAvatar).filter(
-            UserAvatar.user_id == current_user.id,
-            UserAvatar.is_approved == 1
-        ).first()
-        
-        if next_avatar:
-            next_avatar.is_main = 1
-            db.commit()
-    
-    return {"message": "Avatar deleted successfully"}
-
-@router.get("/avatar-requests", response_model=List[dict])
-async def get_avatar_requests(
-    request: Request,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    if current_user.role not in ["admin", "superadmin"]:
-        raise HTTPException(status_code=403, detail="Not enough permissions")
-    # Показываем только pending заявки
-    requests = db.query(AvatarRequestMessage).options(joinedload(AvatarRequestMessage.user), joinedload(AvatarRequestMessage.avatar)).filter(AvatarRequestMessage.status == 'pending').all()
-    result = []
-    for req in requests:
-        result.append({
-            "id": req.id,
-            "user_id": req.user_id,
-            "username": req.user.username if req.user else None,
-            "email": req.user.email if req.user else None,
-            "avatar_id": req.avatar_id,
-            "avatar_url": req.avatar.file_path if req.avatar else None,
-            "request_type": req.avatar.request_type if req.avatar else None,
-            "status": req.status,
-            "created_at": req.created_at,
-            "message": req.message
-        })
-    return result
 
 @router.post("/avatar-requests/{avatar_id}/approve")
 async def approve_avatar_request(
@@ -370,40 +303,17 @@ async def approve_avatar_request(
     req = db.query(AvatarRequestMessage).filter(AvatarRequestMessage.avatar_id == avatar_id, AvatarRequestMessage.status == 'pending').first()
     if not req:
         raise HTTPException(status_code=404, detail="Request not found")
+    # Сбросить is_main у всех аватарок пользователя
+    db.query(UserAvatar).filter(UserAvatar.user_id == avatar.user_id).update({"is_main": 0})
     # Обновляем статусы
     avatar.is_approved = 1
     avatar.request_status = 'approved'
+    avatar.is_main = 1
     req.status = 'approved'
     req.reviewed_by = current_user.id
     req.reviewed_at = datetime.utcnow()
-    # Если это заявка на set_main — делаем этот аватар основным и снимаем is_main с других
-    if avatar.request_type == 'set_main':
-        db.query(UserAvatar).filter(UserAvatar.user_id == avatar.user_id).update({"is_main": 0})
-        avatar.is_main = 1
     db.commit()
     return {"message": "Avatar request approved"}
-
-@router.post("/avatar-requests/{avatar_id}/reject")
-async def reject_avatar_request(
-    request: Request,
-    avatar_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    if current_user.role not in ["admin", "superadmin"]:
-        raise HTTPException(status_code=403, detail="Not enough permissions")
-    avatar = db.query(UserAvatar).filter(UserAvatar.id == avatar_id).first()
-    if not avatar:
-        raise HTTPException(status_code=404, detail="Avatar not found")
-    req = db.query(AvatarRequestMessage).filter(AvatarRequestMessage.avatar_id == avatar_id, AvatarRequestMessage.status == 'pending').first()
-    if not req:
-        raise HTTPException(status_code=404, detail="Request not found")
-    avatar.request_status = 'rejected'
-    req.status = 'rejected'
-    req.reviewed_by = current_user.id
-    req.reviewed_at = datetime.utcnow()
-    db.commit()
-    return {"message": "Avatar request rejected"}
 
 @router.post("/{user_id}/set-role")
 async def set_user_role(
@@ -481,5 +391,166 @@ async def get_users_with_permissions(
             "main_avatar_url": main_avatar_url,
             "avatars": avatars,
             "pending_avatar_requests": pending
+        })
+    return result
+
+@router.post("/avatars/{avatar_id}/request-main")
+async def request_avatar_as_main(
+    request: Request,
+    avatar_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Пользователь отправляет запрос на сделать аватар основным. Все предыдущие pending-запросы удаляются.
+    """
+    avatar = db.query(UserAvatar).filter(UserAvatar.id == avatar_id, UserAvatar.user_id == current_user.id).first()
+    if not avatar:
+        raise HTTPException(status_code=404, detail="Avatar not found or not owned by user")
+    # Сбросить pending/approved/rejected у всех аватарок пользователя
+    db.query(UserAvatar).filter(UserAvatar.user_id == current_user.id).update({
+        'is_approved': 0,
+        'request_status': None,
+        'is_main': 0
+    })
+    db.commit()
+    # Удаляем все предыдущие pending-запросы пользователя
+    db.query(AvatarRequestMessage).filter(
+        AvatarRequestMessage.user_id == current_user.id, 
+        AvatarRequestMessage.status == 'pending'
+    ).delete()
+    db.commit()
+    # Создаём новый pending-запрос
+    req = AvatarRequestMessage(
+        user_id=current_user.id,
+        avatar_id=avatar_id,
+        message="Запрос на установку основного аватара",
+        status='pending'
+    )
+    db.add(req)
+    # У отмеченной аватарки выставляем request_status
+    avatar.is_approved = 0
+    avatar.request_status = 'pending'
+    avatar.is_main = 0
+    db.commit()
+    return {"message": "Запрос отправлен на модерацию"}
+
+@router.delete("/avatar-requests/{avatar_id}/cancel")
+async def cancel_avatar_request(
+    request: Request,
+    avatar_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Пользователь отменяет pending-запрос на смену основного аватара.
+    """
+    req = db.query(AvatarRequestMessage).filter(
+        AvatarRequestMessage.avatar_id == avatar_id,
+        AvatarRequestMessage.user_id == current_user.id,
+        AvatarRequestMessage.status == 'pending'
+    ).first()
+    if not req:
+        raise HTTPException(status_code=404, detail="Pending request not found")
+    db.delete(req)
+    # Сбросить статус у аватарки
+    avatar = db.query(UserAvatar).filter(UserAvatar.id == avatar_id, UserAvatar.user_id == current_user.id).first()
+    if avatar:
+        avatar.is_approved = 0
+        avatar.request_status = None
+        avatar.is_main = 0
+    db.commit()
+    return {"message": "Запрос отменён"}
+
+@router.post("/avatar-requests/{avatar_id}/reject")
+async def reject_avatar_request(
+    request: Request,
+    avatar_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    if current_user.role not in ["admin", "superadmin"]:
+        raise HTTPException(status_code=403, detail="Not enough permissions")
+    avatar = db.query(UserAvatar).filter(UserAvatar.id == avatar_id).first()
+    if not avatar:
+        raise HTTPException(status_code=404, detail="Avatar not found")
+    req = db.query(AvatarRequestMessage).filter(AvatarRequestMessage.avatar_id == avatar_id, AvatarRequestMessage.status == 'pending').first()
+    if not req:
+        raise HTTPException(status_code=404, detail="Request not found")
+    avatar.request_status = 'rejected'
+    avatar.is_approved = 0
+    avatar.is_main = 0
+    req.status = 'rejected'
+    req.reviewed_by = current_user.id
+    req.reviewed_at = datetime.utcnow()
+    db.commit()
+    return {"message": "Avatar request rejected"}
+
+@router.delete("/avatars/{avatar_id}")
+async def delete_user_avatar(
+    request: Request,
+    avatar_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Удалить аватар пользователя
+    """
+    # Проверяем, существует ли аватар и принадлежит ли он пользователю
+    avatar = db.query(UserAvatar).filter(
+        UserAvatar.id == avatar_id,
+        UserAvatar.user_id == current_user.id
+    ).first()
+    
+    if not avatar:
+        raise HTTPException(status_code=404, detail="Avatar not found or not owned by user")
+    
+    # Если удаляемый аватар был основным, нужно выбрать другой аватар как основной
+    was_main = avatar.is_main == 1
+    
+    # Если у аватара есть public_id в Cloudinary, удаляем изображение из Cloudinary
+    if hasattr(avatar, 'cloudinary_public_id') and avatar.cloudinary_public_id:
+        delete_image(avatar.cloudinary_public_id)
+    
+    # Удаляем из базы данных
+    db.delete(avatar)
+    db.commit()
+    
+    # Если удаленный аватар был основным, устанавливаем следующий доступный как основной
+    if was_main:
+        next_avatar = db.query(UserAvatar).filter(
+            UserAvatar.user_id == current_user.id,
+            UserAvatar.is_approved == 1
+        ).first()
+        
+        if next_avatar:
+            next_avatar.is_main = 1
+            db.commit()
+    
+    return {"message": "Avatar deleted successfully"}
+
+@router.get("/avatar-requests", response_model=List[dict])
+async def get_avatar_requests(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    if current_user.role not in ["admin", "superadmin"]:
+        raise HTTPException(status_code=403, detail="Not enough permissions")
+    # Показываем только pending заявки
+    requests = db.query(AvatarRequestMessage).options(joinedload(AvatarRequestMessage.user), joinedload(AvatarRequestMessage.avatar)).filter(AvatarRequestMessage.status == 'pending').all()
+    result = []
+    for req in requests:
+        result.append({
+            "id": req.id,
+            "user_id": req.user_id,
+            "username": req.user.username if req.user else None,
+            "email": req.user.email if req.user else None,
+            "avatar_id": req.avatar_id,
+            "avatar_url": req.avatar.file_path if req.avatar else None,
+            "request_type": req.avatar.request_type if req.avatar else None,
+            "status": req.status,
+            "created_at": req.created_at,
+            "message": req.message
         })
     return result
