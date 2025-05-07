@@ -259,6 +259,7 @@ function setupSettingsEventHandlers() {
 window.showPermissionsModal = async function() {
   const modal = document.getElementById('permissions-modal');
   const tableContainer = document.getElementById('permissions-table-container');
+  if (!modal || !tableContainer) return; // Если элементов нет, ничего не делаем
   modal.style.display = 'block';
   tableContainer.innerHTML = '<div>Завантаження...</div>';
   try {
@@ -272,6 +273,15 @@ window.showPermissionsModal = async function() {
       tableContainer.innerHTML = '<div>Немає заявок</div>';
       return;
     }
+    // Получаем id текущего пользователя
+    let myId = null;
+    if (window.currentUserId) {
+      myId = window.currentUserId;
+    } else if (window.currentUserData && window.currentUserData.id) {
+      myId = window.currentUserData.id;
+    } else if (typeof currentUserData === 'object' && currentUserData && currentUserData.id) {
+      myId = currentUserData.id;
+    }
     let html = `<table class="permissions-table"><thead><tr><th>Avatar</th><th>Username</th><th>Email</th><th>Тип</th><th>Статус</th><th>Дія</th></tr></thead><tbody>`;
     for (const req of requests) {
       html += `<tr>
@@ -280,12 +290,13 @@ window.showPermissionsModal = async function() {
         <td>${req.email || ''}</td>
         <td>${req.request_type || ''}</td>
         <td>${req.status}</td>
-        <td>
-          <button onclick="approveAvatarRequest(${req.avatar_id})">✅</button>
-          <button onclick="rejectAvatarRequest(${req.avatar_id})">❌</button>
-          <button onclick="changeUserRole(${req.user_id})">🔄 Роль</button>
-        </td>
-      </tr>`;
+        <td>`;
+      html += `<button onclick="approveAvatarRequest(${req.avatar_id})">✅</button> <button onclick="rejectAvatarRequest(${req.avatar_id})">❌</button> `;
+      // Кнопка смены роли только если это не superadmin и не сам пользователь (строгое сравнение строк)
+      if (req.role !== 'superadmin' && String(req.user_id) !== String(myId)) {
+        html += `<button class="change-role-btn" data-user-id="${req.user_id}" data-current-role="${req.role}" data-new-role="${req.role === 'admin' ? 'user' : 'admin'}">${req.role === 'admin' ? 'Зробити юзером' : 'Зробити адміном'}</button>`;
+      }
+      html += `</td></tr>`;
     }
     html += '</tbody></table>';
     tableContainer.innerHTML = html;
@@ -298,39 +309,52 @@ window.closePermissionsModal = function() {
   document.getElementById('permissions-modal').style.display = 'none';
 };
 
-window.approveAvatarRequest = async function(avatarId) {
-  if (!confirm('Підтвердити цей аватар?')) return;
-  const accessToken = getAccessToken ? getAccessToken() : '';
-  await fetch(`/users/avatar-requests/${avatarId}/approve`, {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${accessToken}` }
-  });
-  await showPermissionsModal();
-};
+// --- Модальное подтверждение смены роли ---
+document.addEventListener('click', function(e) {
+  if (e.target.classList.contains('change-role-btn')) {
+    const userId = e.target.dataset.userId;
+    const currentRole = e.target.dataset.currentRole;
+    const newRole = e.target.dataset.newRole;
+    // Открываем красивое модальное окно подтверждения (popup-confirm-change-role)
+    const popup = document.getElementById('popup-confirm-change-role');
+    if (popup) {
+      popup.style.display = 'block';
+      document.getElementById('confirm-change-role-message').innerText = newRole === 'admin' ?
+        'Ви дійсно хочете змінити роль користувача з юзера на адміна?' :
+        'Ви дійсно хочете змінити роль користувача з адміна на юзера?';
+      const confirmBtn = document.getElementById('btn-confirm-change-role');
+      confirmBtn.dataset.userId = userId;
+      confirmBtn.dataset.newRole = newRole;
+    }
+  }
+});
 
-window.rejectAvatarRequest = async function(avatarId) {
-  if (!confirm('Відхилити цей аватар?')) return;
-  const accessToken = getAccessToken ? getAccessToken() : '';
-  await fetch(`/users/avatar-requests/${avatarId}/reject`, {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${accessToken}` }
+const confirmChangeRoleBtn = document.getElementById('btn-confirm-change-role');
+if (confirmChangeRoleBtn) {
+  confirmChangeRoleBtn.addEventListener('click', async function() {
+    const userId = this.dataset.userId;
+    const newRole = this.dataset.newRole;
+    const accessToken = getAccessToken ? getAccessToken() : '';
+    const formData = new FormData();
+    formData.append('new_role', newRole);
+    await fetch(`/users/${userId}/set-role`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${accessToken}` },
+      body: formData
+    });
+    document.getElementById('popup-confirm-change-role').style.display = 'none';
+    await showPermissionsModal();
   });
-  await showPermissionsModal();
-};
+}
+const cancelChangeRoleBtn = document.getElementById('btn-cancel-change-role');
+if (cancelChangeRoleBtn) {
+  cancelChangeRoleBtn.addEventListener('click', function() {
+    document.getElementById('popup-confirm-change-role').style.display = 'none';
+  });
+}
 
-window.changeUserRole = async function(userId) {
-  const newRole = prompt('Введіть нову роль для користувача (user/admin/superadmin):');
-  if (!newRole) return;
-  const accessToken = getAccessToken ? getAccessToken() : '';
-  const formData = new FormData();
-  formData.append('new_role', newRole);
-  await fetch(`/users/${userId}/set-role`, {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${accessToken}` },
-    body: formData
-  });
-  await showPermissionsModal();
-};
+// Старый prompt/alert/confirm для смены роли полностью убираем
+window.changeUserRole = undefined;
 
 // Функция для отображения формы редактирования имени пользователя
 function showUsernameEditForm() {

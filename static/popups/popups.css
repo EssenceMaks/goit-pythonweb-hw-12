@@ -13,6 +13,7 @@
 }
 .popup[style*="block"] {
   display: flex !important;
+  z-index: 20001 !important;
 }
 .popup::before {
   content: '';
@@ -20,7 +21,7 @@
   top:0; left:0; right:0; bottom:0;
   background: rgba(40, 60, 70, 0.35);
   backdrop-filter: blur(6px);
-  z-index: 0;
+  z-index: 20000 !important;
 }
 .popup-glass {
   position: relative;
@@ -32,7 +33,7 @@
   border: 1.5px solid rgba(255,255,255,0.19);
   overflow: hidden;
   padding: 32px 28px 24px 28px;
-  z-index: 1;
+  z-index: 30000 !important;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -146,6 +147,12 @@
   background: #f0fff4;
   border-radius: 7px;
   padding: 3px 10px;
+}
+#contact-avatar-letter {
+  color: #225;
+  font-size: 2.1rem;
+  font-weight: 700;
+  user-select: none;
 }
 #phones-list .phone-row {
   display: flex;
@@ -294,4 +301,62 @@ input:invalid, textarea:invalid {
 @keyframes popDown {
   from { transform: translateY(-30px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
+}
+
+/* Повышаем z-index для popup поверх permissions-modal */
+.popup[style*="display: block"],
+.popup[style*="block"] {
+  display: flex !important;
+  z-index: 20001 !important;
+}
+
+#popup-confirm-change-role,
+#popup-confirm-change-role .popup-content {
+  z-index: 20002 !important;
+}
+
+#popup-confirm-delete,
+#popup-confirm-delete .popup-content {
+  z-index: 30000 !important;
+}
+
+/* На всякий случай overlay для popup тоже выше modal */
+.popup::before {
+  z-index: 20000 !important;
+}
+
+/* permissions-modal ниже popup */
+.modal.permissions-modal[style*="display: block"] {
+  display: flex !important;
+  z-index: 10000 !important;
+}
+
+.modal.permissions-modal .modal-content {
+  z-index: 10001 !important;
+}
+
+.pending-cancel-popup {
+  position: fixed;
+  z-index: 30000 !important;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  box-shadow: rgba(0,0,0,0.12) 0 2px 8px;
+  padding: 10px 16px;
+  font-size: 15px;
+  left: 50vw;
+  top: 40vh;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.pending-cancel-popup::before {
+  position: fixed;
+  left: 0; top: 0; right: 0; bottom: 0;
+  background: rgba(40, 60, 70, 0.35);
+  backdrop-filter: blur(6px);
+  z-index: 29999 !important;
+  pointer-events: all;
+  display: block;
 }

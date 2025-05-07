@@ -92,7 +92,7 @@ function renderFooterMessages(showAll = false) {
   footer.innerHTML = toShow.map(l => `<div class="footer-row ${l.type}">${l.msg}</div>`).join('');
   if (btn) {
     btn.style.display = log.length > 5 ? 'inline-block' : 'none';
-    btn.textContent = showAll ? 'Скрыть' : 'Показать все';
+    btn.textContent = showAll ? 'Сховати' : 'Показати всі';
     btn.onclick = () => {
       footer.classList.toggle('expanded', !showAll);
       renderFooterMessages(!showAll);
@@ -231,40 +231,40 @@ document.addEventListener('DOMContentLoaded', function() {
   if (btnCreateDB) {
     btnCreateDB.addEventListener('click', async function() {
       btnCreateDB.disabled = true;
-      addFooterMessage('Создание базы...', 'info');
+      addFooterMessage('Створення бази...', 'info');
       try {
-        // 1. Создать базу - используем authorizedRequest
+        // 1. Створити базу - використовуємо authorizedRequest
         const resp = await authorizedRequest('/db/create-db', {method:'POST'});
         if (!resp) {
-          addFooterMessage('Ошибка авторизации при создании базы', 'error');
+          addFooterMessage('Помилка авторизації при створенні бази', 'error');
           btnCreateDB.disabled = false;
           return;
         }
         
         if (resp.status === 'created' || resp.status === 'exists') {
           addFooterMessage(resp.message, 'success');
-          // 2. Инициализировать таблицы - используем authorizedRequest
+          // 2. Ініціалізувати таблиці - використовуємо authorizedRequest
           const resp2 = await authorizedRequest('/db/init', {method:'POST'});
           if (!resp2) {
-            addFooterMessage('Ошибка авторизации при инициализации таблиц', 'error');
+            addFooterMessage('Помилка авторизації при ініціалізації таблиць', 'error');
             btnCreateDB.disabled = false;
             return;
           }
           
           if (resp2.status === 'created' || resp2.status === 'exists') {
-            addFooterMessage('База и таблицы готовы!', 'success');
+            addFooterMessage('База і таблиці готові!', 'success');
             window.resetAndRenderContacts();
           } else {
-            addFooterMessage('Ошибка инициализации таблиц', 'error');
+            addFooterMessage('Помилка ініціалізації таблиць', 'error');
           }
         } else if (resp.status === 'noenv') {
           addFooterMessage(resp.message, 'error');
         } else {
-          addFooterMessage(resp.message || 'Ошибка создания базы', 'error');
+          addFooterMessage(resp.message || 'Помилка створення бази', 'error');
         }
       } catch (e) {
-        console.error('Ошибка при создании базы:', e);
-        addFooterMessage('Ошибка при создании базы: ' + e.message, 'error');
+        console.error('Помилка при створенні бази:', e);
+        addFooterMessage('Помилка при створенні бази: ' + e.message, 'error');
       }
       btnCreateDB.disabled = false;
     });
@@ -273,14 +273,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
   if (btnDropDB) {
     btnDropDB.addEventListener('click', async function() {
-      if (!confirm('Вы уверены, что хотите УДАЛИТЬ базу данных полностью?')) return;
+      if (!confirm('Ви впевнені, що хочете ВИДАЛИТИ базу даних повністю?')) return;
       btnDropDB.disabled = true;
-      addFooterMessage('Удаление базы...', 'info');
+      addFooterMessage('Видалення бази...', 'info');
       try {
-        // Используем authorizedRequest
+        // Використовуємо authorizedRequest
         const resp = await authorizedRequest('/db/drop-db', {method:'POST'});
         if (!resp) {
-          addFooterMessage('Ошибка авторизации при удалении базы', 'error');
+          addFooterMessage('Помилка авторизації при видаленні бази', 'error');
           btnDropDB.disabled = false;
           return;
         }
@@ -289,11 +289,11 @@ document.addEventListener('DOMContentLoaded', function() {
           addFooterMessage(resp.message, 'success');
           window.resetAndRenderContacts();
         } else {
-          addFooterMessage(resp.message || 'Ошибка удаления базы', 'error');
+          addFooterMessage(resp.message || 'Помилка видалення бази', 'error');
         }
       } catch (e) {
-        console.error('Ошибка при удалении базы:', e);
-        addFooterMessage('Ошибка при удалении базы: ' + e.message, 'error');
+        console.error('Помилка при видаленні бази:', e);
+        addFooterMessage('Помилка при видаленні бази: ' + e.message, 'error');
       }
       btnDropDB.disabled = false;
     });
@@ -304,19 +304,19 @@ document.addEventListener('DOMContentLoaded', function() {
     btnInit.addEventListener('click', async function() {
       btnInit.disabled = true;
       try {
-        // Используем authorizedRequest
+        // Використовуємо authorizedRequest
         const resp = await authorizedRequest('/db/init', {method:'POST'});
         if (!resp) {
-          addFooterMessage('Ошибка авторизации при инициализации базы', 'error');
+          addFooterMessage('Помилка авторизації при ініціалізації бази', 'error');
           btnInit.disabled = false;
           return;
         }
         
-        addFooterMessage('База успешно инициализирована', 'success');
+        addFooterMessage('База успішно ініціалізована', 'success');
         window.resetAndRenderContacts();
       } catch (e) {
-        console.error('Ошибка при инициализации базы:', e);
-        addFooterMessage('Ошибка сети при инициализации: ' + e.message, 'error');
+        console.error('Помилка при ініціалізації бази:', e);
+        addFooterMessage('Помилка мережі при ініціалізації: ' + e.message, 'error');
       }
       btnInit.disabled = false;
     });
@@ -326,19 +326,19 @@ document.addEventListener('DOMContentLoaded', function() {
     btnFill.addEventListener('click', async function() {
       btnFill.disabled = true;
       try {
-        // Используем authorizedRequest
+        // Використовуємо authorizedRequest
         const resp = await authorizedRequest('/db/fill-fake?n=10', {method:'POST'});
         if (!resp) {
-          addFooterMessage('Ошибка авторизации при добавлении контактов', 'error');
+          addFooterMessage('Помилка авторизації при додаванні контактів', 'error');
           btnFill.disabled = false;
           return;
         }
         
-        addFooterMessage('Контакты успешно добавлены', 'success');
+        addFooterMessage('Контакти успішно додані', 'success');
         window.resetAndRenderContacts();
       } catch (e) {
-        console.error('Ошибка при добавлении контактов:', e);
-        addFooterMessage('Ошибка сети при добавлении: ' + e.message, 'error');
+        console.error('Помилка при додаванні контактів:', e);
+        addFooterMessage('Помилка мережі при додаванні: ' + e.message, 'error');
       }
       btnFill.disabled = false;
     });
@@ -348,19 +348,19 @@ document.addEventListener('DOMContentLoaded', function() {
     btnClear.addEventListener('click', async function() {
       btnClear.disabled = true;
       try {
-        // Используем authorizedRequest
+        // Використовуємо authorizedRequest
         const resp = await authorizedRequest('/db/clear', {method:'POST'});
         if (!resp) {
-          addFooterMessage('Ошибка авторизации при удалении контактов', 'error');
+          addFooterMessage('Помилка авторизації при видаленні контактів', 'error');
           btnClear.disabled = false;
           return;
         }
         
-        addFooterMessage('Все контакты удалены', 'success');
+        addFooterMessage('Всі контакти видалені', 'success');
         window.resetAndRenderContacts();
       } catch (e) {
-        console.error('Ошибка при удалении контактов:', e);
-        addFooterMessage('Ошибка сети при удалении: ' + e.message, 'error');
+        console.error('Помилка при видаленні контактів:', e);
+        addFooterMessage('Помилка мережі при видаленні: ' + e.message, 'error');
       }
       btnClear.disabled = false;
     });
@@ -426,7 +426,7 @@ async function loadPermissionsUsers() {
           <td>${u.username}</td>
           <td>${u.email}</td>
           <td>${u.role}
-            <button onclick="changeUserRole(${u.id}, '${u.role}')">${u.role === 'admin' ? 'Сделать юзером' : 'Сделать админом'}</button>
+            ${(u.role !== 'superadmin' && String(u.id) !== String(window.currentUserId)) ? `<button class="change-role-btn" data-user-id="${u.id}" data-current-role="${u.role}" data-new-role="${u.role === 'admin' ? 'user' : 'admin'}">${u.role === 'admin' ? 'Зробити юзером' : 'Зробити адміном'}</button>` : ''}
           </td>
           <td></td>
           <td>
@@ -435,8 +435,8 @@ async function loadPermissionsUsers() {
                 <div style='margin-bottom:5px;'>
                   <img src='${req.avatar_url || '/static/menu/img/avatar.png'}' style='width:40px;height:40px;border-radius:50%;vertical-align:middle;'>
                   <span>${req.message || ''}</span>
-                  <button onclick="approveAvatar(${req.avatar_id})">Одобрить</button>
-                  <button onclick="rejectAvatar(${req.avatar_id})">Отклонить</button>
+                  <button class="approve-avatar-btn" data-avatar-id="${req.avatar_id}">Схвалити</button>
+                  <button class="reject-avatar-btn" data-avatar-id="${req.avatar_id}">Відмовити</button>
                 </div>
               `).join('') : '<span style="color:#888">Нет</span>'}
           </td>
@@ -448,57 +448,78 @@ async function loadPermissionsUsers() {
 }
 window.loadPermissionsUsers = loadPermissionsUsers;
 
-window.changeUserRole = async function(userId, currentRole) {
-  const newRole = currentRole === 'admin' ? 'user' : 'admin';
-  if (!confirm('Изменить роль пользователя?')) return;
-  try {
-    const resp = await window.authorizedRequest(`/users/set-role/${userId}`, {
+// Обработчик смены роли (минимально обновляет только ячейку роли)
+document.addEventListener('click', async function(e) {
+  if (e.target.classList.contains('change-role-btn')) {
+    const userId = e.target.dataset.userId;
+    const currentRole = e.target.dataset.currentRole;
+    const newRole = e.target.dataset.newRole;
+    // Здесь можешь добавить confirm или popup, если хочешь подтверждение
+    const accessToken = getAuthHeader ? getAuthHeader().Authorization : '';
+    const formData = new FormData();
+    formData.append('new_role', newRole);
+    await fetch(`/users/${userId}/set-role`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: `new_role=${newRole}`
+      headers: { 'Authorization': accessToken },
+      body: formData
     });
-    if (resp && resp.message) showFooterMessage(resp.message, 'success');
-    loadPermissionsUsers();
-  } catch (e) {
-    showFooterMessage('Ошибка смены роли', 'error');
+    // Минимально обновляем только ячейку роли
+    const td = e.target.closest('td');
+    if (td) {
+      if (newRole === 'admin') {
+        td.innerHTML = `admin <button class="change-role-btn" data-user-id="${userId}" data-current-role="admin" data-new-role="user">Зробити юзером</button>`;
+      } else {
+        td.innerHTML = `user <button class="change-role-btn" data-user-id="${userId}" data-current-role="user" data-new-role="admin">Зробити адміном</button>`;
+      }
+    }
   }
-};
+});
 
-window.approveAvatar = async function(avatarId) {
-  if (!confirm('Одобрить этот аватар?')) return;
-  try {
-    const resp = await window.authorizedRequest(`/users/avatar-requests/${avatarId}/approve`, { method: 'POST' });
-    if (resp && resp.message) showFooterMessage(resp.message, 'success');
-    loadPermissionsUsers();
-  } catch (e) {
-    showFooterMessage('Ошибка одобрения аватара', 'error');
-  }
-};
+// Подтверждение для approve/reject avatar
+if (document.addEventListener) {
+  document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('approve-avatar-btn')) {
+      const avatarId = e.target.dataset.avatarId;
+      showConfirmPopup('Ви впевнені, що хочете схвалити цей аватар як основний?', function() {
+        window.approveAvatar && window.approveAvatar(avatarId);
+      });
+      return;
+    }
+    if (e.target.classList.contains('reject-avatar-btn')) {
+      const avatarId = e.target.dataset.avatarId;
+      showConfirmPopup('Ви впевнені, що хочете відмовити у встановленні цього аватара?', function() {
+        window.rejectAvatar && window.rejectAvatar(avatarId);
+      });
+      return;
+    }
+  });
+}
 
-window.rejectAvatar = async function(avatarId) {
-  if (!confirm('Отклонить этот аватар?')) return;
-  try {
-    const resp = await window.authorizedRequest(`/users/avatar-requests/${avatarId}/reject`, { method: 'POST' });
-    if (resp && resp.message) showFooterMessage(resp.message, 'success');
-    loadPermissionsUsers();
-  } catch (e) {
-    showFooterMessage('Ошибка отклонения аватара', 'error');
-  }
-};
+// Універсальна функція показу popup
+function showConfirmPopup(message, onYes) {
+  // Видалити попередній popup, якщо є
+  document.querySelectorAll('.pending-cancel-popup').forEach(e => e.remove());
+  const popup = document.createElement('div');
+  popup.className = 'pending-cancel-popup';
+  popup.innerHTML = `${message}<br><div style='margin-top:8px;display:flex;gap:10px;justify-content:center'><button class='pending-cancel-yes'>Так</button><button class='pending-cancel-no'>Відміна</button></div>`;
+  document.body.appendChild(popup);
+  popup.querySelector('.pending-cancel-yes').onclick = () => { popup.remove(); onYes(); };
+  popup.querySelector('.pending-cancel-no').onclick = () => popup.remove();
+}
 
-// Функции для управления несколькими аккаунтами
+// Функції для управління кількома обліковими записами
 let knownAccounts = [];
 
-// Инициализация при загрузке страницы
+// Ініціалізація при завантаженні сторінки
 document.addEventListener('DOMContentLoaded', function() {
-    // Добавление обработчика клика для выпадающего меню
+    // Додавання обробника кліку для випадаючого меню
     const accountDropdown = document.querySelector('.account-dropdown');
     if (accountDropdown) {
         accountDropdown.addEventListener('click', function(e) {
-            // Предотвращаем всплытие события
+            // Перешкоджаємо вспливанню події
             e.stopPropagation();
             
-            // Переключаем видимость выпадающего меню
+            // Переключаємо видимість випадаючого меню
             const dropdownContent = this.querySelector('.dropdown-content');
             if (dropdownContent) {
                 dropdownContent.classList.toggle('show');
@@ -506,7 +527,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Закрываем меню при клике вне его
+    // Закриваємо меню при кліку поза ним
     document.addEventListener('click', function() {
         const dropdownContent = document.querySelector('.dropdown-content');
         if (dropdownContent && dropdownContent.classList.contains('show')) {
@@ -514,10 +535,10 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
-    // Загрузка сохраненных аккаунтов из localStorage
+    // Завантаження збережених облікових записів з localStorage
     loadKnownAccounts();
     
-    // Проверяем текущего пользователя и добавляем его в список
+    // Перевіряємо поточного користувача та додаємо його до списку
     const currentUser = {
         id: window.currentUserId || '',
         username: window.currentUsername || '',
@@ -525,26 +546,26 @@ document.addEventListener('DOMContentLoaded', function() {
         role: window.userRole || 'user'
     };
     
-    console.log("Текущий пользователь:", currentUser);
+    console.log("Поточний користувач:", currentUser);
     
-    // Если у нас есть данные о текущем пользователе, добавляем его в список известных аккаунтов
+    // Якщо у нас є дані про поточного користувача, додаємо його до списку відомих облікових записів
     if (currentUser.id && (currentUser.email || currentUser.username)) {
         addToKnownAccounts(currentUser);
     }
     
-    // Обновляем дропдаун меню
+    // Оновлюємо дропдаун меню
     updateAccountsDropdown();
 });
 
-// Загрузка известных аккаунтов из localStorage
+// Завантаження відомих облікових записів з localStorage
 function loadKnownAccounts() {
     const savedAccounts = localStorage.getItem('knownAccounts');
     if (savedAccounts) {
         try {
             knownAccounts = JSON.parse(savedAccounts);
-            console.log('Загружены сохраненные аккаунты:', knownAccounts);
+            console.log('Завантажені збережені облікові записи:', knownAccounts);
         } catch (e) {
-            console.error('Ошибка при загрузке сохраненных аккаунтов:', e);
+            console.error('Помилка при завантаженні збережених облікових записів:', e);
             knownAccounts = [];
         }
     } else {
@@ -552,47 +573,47 @@ function loadKnownAccounts() {
     }
 }
 
-// Сохранение списка аккаунтов в localStorage
+// Збереження списку облікових записів в localStorage
 function saveKnownAccounts() {
     localStorage.setItem('knownAccounts', JSON.stringify(knownAccounts));
 }
 
-// Добавление аккаунта в список известных
+// Додавання облікового запису до списку відомих
 function addToKnownAccounts(account) {
-    // Проверяем, есть ли уже такой аккаунт в списке
+    // Перевіряємо, чи є вже такий обліковий запис у списку
     const existingAccountIndex = knownAccounts.findIndex(acc => acc.id === account.id);
     
     if (existingAccountIndex !== -1) {
-        // Обновляем существующий аккаунт
+        // Оновлюємо існуючий обліковий запис
         knownAccounts[existingAccountIndex] = {
             ...knownAccounts[existingAccountIndex],
             ...account
         };
     } else {
-        // Добавляем новый аккаунт
+        // Додаємо новий обліковий запис
         knownAccounts.push(account);
     }
     
-    // Сохраняем обновленный список
+    // Зберігаємо оновлений список
     saveKnownAccounts();
 }
 
-// Обновление выпадающего меню с аккаунтами
+// Оновлення випадаючого меню з обліковими записами
 function updateAccountsDropdown() {
     const dropdownContent = document.querySelector('.dropdown-content');
     if (!dropdownContent) return;
     
-    // Очищаем текущее содержимое
+    // Очищаємо поточне вміст
     dropdownContent.innerHTML = '';
     
-    console.log('Обновление выпадающего меню аккаунтов:', knownAccounts);
+    console.log('Оновлення випадаючого меню облікових записів:', knownAccounts);
     
-    // Добавляем каждый известный аккаунт
+    // Додаємо кожен відомий обліковий запис
     knownAccounts.forEach(account => {
-        // Проверяем наличие ID для сравнения
+        // Перевіряємо наявність ID для порівняння
         const isCurrentAccount = account.id === window.currentUserId;
         
-        // Обрезаем длинный email до 15 символов и добавляем многоточие
+        // Обрізаємо довгий email до 15 символів та додаємо крапку з комою
         let displayName = account.email || account.username || 'Неизвестный пользователь';
         if (displayName.length > 15) {
             displayName = displayName.substring(0, 15) + '...';
@@ -608,7 +629,7 @@ function updateAccountsDropdown() {
             ${isCurrentAccount ? '<div class="current-marker">✓</div>' : ''}
         `;
         
-        // Добавляем обработчик клика для переключения на этот аккаунт
+        // Додаємо обробник кліку для переключення на цей обліковий запис
         if (!isCurrentAccount) {
             accountItem.addEventListener('click', () => switchAccount(account));
         }
@@ -616,26 +637,26 @@ function updateAccountsDropdown() {
         dropdownContent.appendChild(accountItem);
     });
     
-    // Добавляем разделитель, если есть какие-то аккаунты
+    // Додаємо розділювач, якщо є якісь облікові записи
     if (knownAccounts.length > 0) {
         const divider = document.createElement('div');
         divider.className = 'dropdown-divider';
         dropdownContent.appendChild(divider);
     }
     
-    // Добавляем кнопку "Add Login"
+    // Додаємо кнопку "Add Login"
     const addLoginLink = document.createElement('a');
     addLoginLink.href = '/login';
     addLoginLink.className = 'add-login-link';
-    addLoginLink.textContent = 'Add Login';
+    addLoginLink.textContent = 'Додати обліковий запис';
     dropdownContent.appendChild(addLoginLink);
 }
 
-// Переключение на другой аккаунт
+// Переключення на інший обліковий запис
 function switchAccount(account) {
-    // Предотвращаем всплытие события клика
+    // Перешкоджаємо вспливанню події кліку
     event.stopPropagation();
     
-    // Здесь отправляем запрос на сервер для переключения на выбранный аккаунт
+    // Тут відправляємо запит на сервер для переключення на вибраний обліковий запис
     window.location.href = `/switch_account/${account.id}`;
 }
