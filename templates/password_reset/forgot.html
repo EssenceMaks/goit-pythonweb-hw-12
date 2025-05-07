@@ -3,22 +3,45 @@
 
 {% block content %}
 <div class="glass-container">
-    <form method="post" action="/forgot">
-        <h2>Відновлення пароля</h2>
-        <p>Введіть вашу адресу електронної пошти для відновлення пароля</p>
-        
-        {% if error %}
-            <div class="error-message">{{ error }}</div>
-        {% endif %}
-        
-        {% if success %}
-            <div class="success-message">{{ success }}</div>
-        {% endif %}
-        
-        <input type="email" name="email" placeholder="Ваша електронна пошта" required>
-        <button type="submit" class="login-btn">Відправити</button>
-        
-        <div class="login-link">Згадали пароль? <a href="/login">Увійти</a></div>
-    </form>
+    {% if success %}
+        <div class="success-block" style="display: flex; flex-direction: column; align-items: center; padding: 32px 24px;">
+            <h2 style="margin-bottom: 18px;">Відновлення пароля</h2>
+            <div class="success-message" style="margin-bottom: 20px;">На Ваш email відправлено листа для зміни пароля</div>
+            <button onclick="window.location.href='/login'" class="login-btn" style="width:100%;margin-top:10px;">Перейти до авторизації</button>
+        </div>
+    {% else %}
+        <form method="post" action="/forgot">
+            <h2>Відновлення пароля</h2>
+            <p>Введіть вашу адресу електронної пошти для відновлення пароля</p>
+            {% if error %}
+                <div class="error-message">{{ error }}</div>
+            {% endif %}
+            <input type="email" name="email" placeholder="Ваша електронна пошта" required>
+            <script>
+            document.addEventListener('DOMContentLoaded', function() {
+              try {
+                var emailInput = document.querySelector('input[name="email"]');
+                // 1. Попробовать взять email из query-параметра
+                var params = new URLSearchParams(window.location.search);
+                var queryEmail = params.get('email');
+                if (queryEmail && emailInput) {
+                  emailInput.value = queryEmail;
+                  // Можно сохранить в localStorage для совместимости
+                  localStorage.setItem('reset_email', queryEmail);
+                  return;
+                }
+                // 2. Если нет query, взять из localStorage
+                var resetEmail = localStorage.getItem('reset_email');
+                if (resetEmail && emailInput) {
+                  emailInput.value = resetEmail;
+                  localStorage.removeItem('reset_email');
+                }
+              } catch(e) { /* ignore */ }
+            });
+            </script>
+            <button type="submit" class="login-btn">Відправити</button>
+            <div class="login-link">Згадали пароль? <a href="/login">Увійти</a></div>
+        </form>
+    {% endif %}
 </div>
 {% endblock %}

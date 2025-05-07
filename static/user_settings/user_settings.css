@@ -673,17 +673,20 @@
   display: inline-block;
 }
 
-.login-link {
-  color: #87f06c;
-  text-decoration: none;
+a.login-link,
+a.login-link:visited,
+a.login-link:hover,
+a.login-link:active {
+  color: #87f06c !important;
+  text-decoration: none !important;
   font-size: 0.95rem;
   margin-top: 4px;
   align-self: flex-end;
 }
 
-.login-link a {
-  color: #87f06c;
-  text-decoration: none;
+.login-link > a {
+  color: #87f06c !important;
+  text-decoration: none !important;
   font-size: 0.95rem;
   margin-top: 4px;
   align-self: flex-end;

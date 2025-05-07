@@ -163,6 +163,8 @@ async function renderUserSettings() {
 }
 
 // --- Функция для показа окна после сброса пароля ---
+
+
 function showPasswordResetSent(email) {
   const contactsList = document.getElementById('contacts-list');
   if (!contactsList) return;
@@ -173,14 +175,13 @@ function showPasswordResetSent(email) {
         На вашу електронну пошту <b>${email}</b> надіслано лист для відновлення паролю.<br>
         Перевірте пошту та завершіть процедуру скидання паролю за посиланням у листі.
       </div>
-      <div class="login-link" style="margin-top:24px;">
-        <a href="/login" class="login-link">Повернутися до входу</a>
+      <div class="login-link" style="margin-top:24px; color:#87f06c;">
+        <a href="#" id="logout-and-reset-link" class="login-link" style="color:#87f06c;">Вийти(розлогінитися) для нового логіну</a>
       </div>
     </div>
   `;
   contactsList.setAttribute('data-mode', 'reset-password-info');
 }
-
 // Настройка обработчиков событий для кнопок в настройках
 function setupSettingsEventHandlers() {
   // Кнопка возврата к контактам - должна быть единственным способом выйти из настроек
@@ -193,6 +194,54 @@ function setupSettingsEventHandlers() {
   
   // Редактирование имени пользователя
   const editUsernameBtn = document.querySelector('.edit-username-btn');
+
+  // --- Сброс пароля из настроек ---
+  const resetPasswordBtn = document.querySelector('.reset-password-btn');
+  if (resetPasswordBtn) {
+    resetPasswordBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      showPasswordResetConfirmBlock();
+    });
+  }
+
+// Блок-подтверждение сброса пароля
+function showPasswordResetConfirmBlock() {
+  const passwordRow = document.getElementById('password-row');
+  if (!passwordRow || !currentUserData || !currentUserData.email) return;
+  passwordRow.innerHTML = `
+    <div class="settings-label">Пароль:</div>
+    <div class="settings-value">
+      <div class="password-reset-confirm-block">
+        <div class="confirm-text">Ви впевнені що хочете вийти і пройти процедуру відновлення пароля?</div>
+        <div class="confirm-actions">
+          <button id="confirm-reset-password-btn" class="save-btn">Так</button>
+          <button id="cancel-reset-password-btn" class="cancel-btn">Ні</button>
+        </div>
+      </div>
+    </div>
+  `;
+  // Обработчик "Так"
+  const confirmBtn = document.getElementById('confirm-reset-password-btn');
+  if (confirmBtn) {
+    confirmBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      // Передаём email через query или localStorage
+      if (window.sessionStorage) {
+        sessionStorage.setItem('forgotEmail', currentUserData.email);
+      }
+      window.location.href = `/forgot?email=${encodeURIComponent(currentUserData.email)}`;
+    });
+  }
+  // Обработчик "Ні"
+  const cancelBtn = document.getElementById('cancel-reset-password-btn');
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      renderUserSettings();
+    });
+  }
+}
+
   if (editUsernameBtn) {
     editUsernameBtn.addEventListener('click', function(e) {
       e.stopPropagation(); // Предотвращаем всплытие события
@@ -209,34 +258,7 @@ function setupSettingsEventHandlers() {
     });
   }
   
-  // Сброс пароля - перенаправляем на страницу /forgot с автозаполненным email
-  const resetPasswordBtn = document.querySelector('.reset-password-btn');
-  if (resetPasswordBtn) {
-    resetPasswordBtn.addEventListener('click', async function(e) {
-      e.stopPropagation();
-      if (currentUserData && currentUserData.email) {
-        if (confirm('Ви дійсно хочете скинути пароль? Вас буде вилогінено з системи, і на вашу пошту буде відправлено посилання для встановлення нового пароля.')) {
-          // Запрос на сброс пароля (отправка письма)
-          try {
-            const resp = await fetch('/users/reset-password', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                ...getAuthHeader?.()
-              },
-              body: JSON.stringify({ email: currentUserData.email })
-            });
-            // Разлогиниваем пользователя (можно вызвать /logout)
-            await fetch('/logout', { method: 'GET', credentials: 'include' });
-            // Показываем окно-информацию
-            showPasswordResetSent(currentUserData.email);
-          } catch (err) {
-            alert('Сталася помилка при надсиланні листа. Спробуйте ще раз.');
-          }
-        }
-      }
-    });
-  }
+
   
   // Настраиваем обработчики событий для кнопок аватаров, если функция доступна
   if (typeof window.setupUserAvatars === 'function') {
