@@ -431,7 +431,7 @@ async function loadPermissionsUsers() {
           <td></td>
           <td>
             ${u.pending_avatar_requests && u.pending_avatar_requests.length > 0 ?
-              u.pending_avatar_requests.map(req => `
+              u.pending_avatar_requests.filter(req => req.status === 1).map(req => `
                 <div style='margin-bottom:5px;'>
                   <img src='${req.avatar_url || '/static/menu/img/avatar.png'}' style='width:40px;height:40px;border-radius:50%;vertical-align:middle;'>
                   <span>${req.message || ''}</span>

@@ -45,7 +45,7 @@ class UserAvatar(Base):
     is_approved = Column(Integer, default=0)  # 0 - not approved, 1 - approved
     is_main = Column(Integer, default=0)      # 0 - not main, 1 - main
     request_type = Column(String, default='upload')  # 'upload' or 'set_main'
-    request_status = Column(String, default='pending')  # 'pending', 'approved', 'rejected'
+    request_status = Column(Integer, default=0)  # 0 - not pending, 1 - pending, 2 - rejected, 3 - approved
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -58,7 +58,7 @@ class AvatarRequestMessage(Base):
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False)  # кто отправил запрос
     avatar_id = Column(Integer, ForeignKey('user_avatars.id'), nullable=False)
     message = Column(Text, nullable=True)
-    status = Column(String, default='pending')  # 'pending', 'approved', 'rejected'
+    status = Column(Integer, default=0)  # 0 - not pending, 1 - pending, 2 - rejected, 3 - approved
     created_at = Column(DateTime, default=datetime.utcnow)
     reviewed_by = Column(Integer, ForeignKey('users.id'), nullable=True)  # кто подтвердил (админ)
     reviewed_at = Column(DateTime, nullable=True)

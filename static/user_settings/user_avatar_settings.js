@@ -121,12 +121,12 @@ function displayUserAvatars(avatars) {
     avatarElement.dataset.id = avatar.id;
     if (avatar.is_main && avatar.is_approved) avatarElement.classList.add('main-avatar');
     let actionHtml = '';
-    // --- Новая логика отображения статусов ---
+    // --- Новый числовой статус ---
     if (avatar.is_main && avatar.is_approved) {
       actionHtml = '<span class="main-badge">Основний</span>';
-    } else if (avatar.request_status === 'pending') {
+    } else if (avatar.request_status === 1) {
       actionHtml = `<span class="pending-badge" data-id="${avatar.id}" title="На перевірці">На перевірці</span>`;
-    } else if (avatar.request_status === 'rejected') {
+    } else if (avatar.request_status === 2) {
       actionHtml = `<span class="rejected-badge">Відхилено</span><button class="set-main-avatar-btn" data-id="${avatar.id}">Зробити основним</button>`;
     } else {
       actionHtml = `<button class="set-main-avatar-btn" data-id="${avatar.id}">Зробити основним</button>`;
@@ -141,21 +141,18 @@ function displayUserAvatars(avatars) {
     avatarsGallery.appendChild(avatarElement);
   });
 
-  // Кнопки "Сделать основным"
   document.querySelectorAll('.set-main-avatar-btn').forEach(btn => {
     btn.addEventListener('click', function(e) {
       e.stopPropagation();
       requestMainAvatar(this.dataset.id);
     });
   });
-  // Кнопки удаления
   document.querySelectorAll('.delete-avatar-btn').forEach(btn => {
     btn.addEventListener('click', function(e) {
       e.stopPropagation();
       deleteAvatar(this.dataset.id);
     });
   });
-  // Pending badge: кастомный попап подтверждения
   document.querySelectorAll('.pending-badge').forEach(badge => {
     badge.addEventListener('mouseenter', function() {
       this.innerHTML = '<span class="cancel-pending-btn" style="cursor:pointer;color:#c00;">відмінити запит</span>';

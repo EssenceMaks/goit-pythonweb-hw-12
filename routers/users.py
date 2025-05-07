@@ -205,14 +205,14 @@ async def upload_user_avatar(
         if not url or not public_id:
             raise HTTPException(status_code=500, detail="Failed to upload avatar")
         # Для админов — сразу approved и основным
-        if current_user.role in ["admin", "superadmin"]:
-            is_approved = 1
-            request_status = 'approved'
-            is_main = 1
-        else:
-            is_approved = 0
-            request_status = None
-            is_main = 0
+        #if current_user.role in ["admin", "superadmin"]:
+        #    is_approved = 1
+        #    request_status = 'approved'#
+        #    is_main = 1
+        #else:
+        is_approved = 0
+        request_status = 0
+        is_main = 0
         new_avatar = UserAvatar(
             user_id=current_user.id,
             file_path=url,
@@ -245,7 +245,7 @@ async def set_avatar_as_main(
     db: Session = Depends(get_db)
 ):
     """
-    Установить аватар как основной
+    Установить аватар как основной (только после одобрения админом)
     """
     avatar = db.query(UserAvatar).filter(
         UserAvatar.id == avatar_id,
@@ -253,34 +253,39 @@ async def set_avatar_as_main(
     ).first()
     if not avatar:
         raise HTTPException(status_code=404, detail="Avatar not found or not owned by user")
-    # Сбросить pending/approved/rejected у всех аватарок пользователя
-    db.query(UserAvatar).filter(UserAvatar.user_id == current_user.id).update({
-        "request_status": None,
-        "is_main": 0
-    })
     if current_user.role in ["admin", "superadmin"]:
+        # Для админа — сразу делаем основным
+        db.query(UserAvatar).filter(UserAvatar.user_id == current_user.id).update({
+            "request_status": 0,
+            "is_main": 0
+        })
         avatar.is_main = 1
         avatar.is_approved = 1
-        avatar.request_status = 'approved'
+        avatar.request_status = 3
         db.commit()
         return {"message": "Avatar set as main successfully"}
-    # Для обычных пользователей — создаём заявку
+    # Для обычных пользователей — только заявка, НЕ сбрасываем основную!
+    # Только сбрасываем pending/rejected у всех, но не is_main
+    db.query(UserAvatar).filter(UserAvatar.user_id == current_user.id).update({
+        "request_status": 0
+    })
     avatar.request_type = 'set_main'
-    avatar.request_status = 'pending'
-    avatar.is_main = 0  # Не делаем основным до одобрения
+    avatar.request_status = 1
+    avatar.is_main = 0
     avatar.is_approved = 0
     db.commit()
     # Сбросить все pending-заявки в AvatarRequestMessage
     db.query(AvatarRequestMessage).filter(
         AvatarRequestMessage.user_id == current_user.id,
-        AvatarRequestMessage.status == 'pending'
+        AvatarRequestMessage.status == 1
     ).delete()
+    db.commit()
     # Создаём заявку
     msg = AvatarRequestMessage(
         user_id=current_user.id,
         avatar_id=avatar.id,
         message="Request to set avatar as main",
-        status='pending',
+        status=1,
         created_at=datetime.utcnow()
     )
     db.add(msg)
@@ -300,16 +305,16 @@ async def approve_avatar_request(
     if not avatar:
         raise HTTPException(status_code=404, detail="Avatar not found")
     # Находим заявку
-    req = db.query(AvatarRequestMessage).filter(AvatarRequestMessage.avatar_id == avatar_id, AvatarRequestMessage.status == 'pending').first()
+    req = db.query(AvatarRequestMessage).filter(AvatarRequestMessage.avatar_id == avatar_id, AvatarRequestMessage.status == 1).first()
     if not req:
         raise HTTPException(status_code=404, detail="Request not found")
     # Сбросить is_main у всех аватарок пользователя
     db.query(UserAvatar).filter(UserAvatar.user_id == avatar.user_id).update({"is_main": 0})
     # Обновляем статусы
     avatar.is_approved = 1
-    avatar.request_status = 'approved'
+    avatar.request_status = 3
     avatar.is_main = 1
-    req.status = 'approved'
+    req.status = 3
     req.reviewed_by = current_user.id
     req.reviewed_at = datetime.utcnow()
     db.commit()
@@ -349,7 +354,7 @@ async def get_users_with_permissions(
 
     users = db.query(User).options(joinedload(User.avatars)).all()
     # Получаем pending заявки на смену аватара
-    pending_requests = db.query(AvatarRequestMessage).filter(AvatarRequestMessage.status == 'pending').all()
+    pending_requests = db.query(AvatarRequestMessage).filter(AvatarRequestMessage.status == 1).all()
     # Группируем pending заявки по user_id
     requests_by_user = {}
     for req in pending_requests:
@@ -407,33 +412,36 @@ async def request_avatar_as_main(
     avatar = db.query(UserAvatar).filter(UserAvatar.id == avatar_id, UserAvatar.user_id == current_user.id).first()
     if not avatar:
         raise HTTPException(status_code=404, detail="Avatar not found or not owned by user")
-    # Сбросить pending/approved/rejected у всех аватарок пользователя
-    db.query(UserAvatar).filter(UserAvatar.user_id == current_user.id).update({
-        'is_approved': 0,
-        'request_status': None,
-        'is_main': 0
-    })
+    # --- Сбросить pending у всех других аватарок пользователя при создании новой заявки ---
+    db.query(UserAvatar).filter(
+        UserAvatar.user_id == current_user.id,
+        UserAvatar.id != avatar.id,
+        UserAvatar.request_status == 1
+    ).update({"request_status": 0, "is_approved": 0, "is_main": 0})
     db.commit()
-    # Удаляем все предыдущие pending-запросы пользователя
+    avatar.request_type = 'set_main'
+    avatar.request_status = 1  # pending
+    avatar.is_main = 0
+    avatar.is_approved = 0
+    db.commit()
+    # Сбросить все pending-заявки в AvatarRequestMessage (кроме новой)
     db.query(AvatarRequestMessage).filter(
-        AvatarRequestMessage.user_id == current_user.id, 
-        AvatarRequestMessage.status == 'pending'
+        AvatarRequestMessage.user_id == current_user.id,
+        AvatarRequestMessage.avatar_id != avatar.id,
+        AvatarRequestMessage.status == 1
     ).delete()
     db.commit()
-    # Создаём новый pending-запрос
-    req = AvatarRequestMessage(
+    # Создаём заявку
+    msg = AvatarRequestMessage(
         user_id=current_user.id,
-        avatar_id=avatar_id,
-        message="Запрос на установку основного аватара",
-        status='pending'
+        avatar_id=avatar.id,
+        message="Request to set avatar as main",
+        status=1,
+        created_at=datetime.utcnow()
     )
-    db.add(req)
-    # У отмеченной аватарки выставляем request_status
-    avatar.is_approved = 0
-    avatar.request_status = 'pending'
-    avatar.is_main = 0
+    db.add(msg)
     db.commit()
-    return {"message": "Запрос отправлен на модерацию"}
+    return {"message": "Request to set avatar as main sent for approval"}
 
 @router.delete("/avatar-requests/{avatar_id}/cancel")
 async def cancel_avatar_request(
@@ -445,22 +453,20 @@ async def cancel_avatar_request(
     """
     Пользователь отменяет pending-запрос на смену основного аватара.
     """
-    req = db.query(AvatarRequestMessage).filter(
-        AvatarRequestMessage.avatar_id == avatar_id,
-        AvatarRequestMessage.user_id == current_user.id,
-        AvatarRequestMessage.status == 'pending'
-    ).first()
-    if not req:
-        raise HTTPException(status_code=404, detail="Pending request not found")
-    db.delete(req)
-    # Сбросить статус у аватарки
     avatar = db.query(UserAvatar).filter(UserAvatar.id == avatar_id, UserAvatar.user_id == current_user.id).first()
-    if avatar:
-        avatar.is_approved = 0
-        avatar.request_status = None
-        avatar.is_main = 0
+    if not avatar:
+        raise HTTPException(status_code=404, detail="Avatar not found or not owned by user")
+    # Попытаться найти и удалить pending-запрос
+    req = db.query(AvatarRequestMessage).filter(AvatarRequestMessage.avatar_id == avatar_id, AvatarRequestMessage.status == 1).first()
+    if req:
+        db.delete(req)
+        db.commit()
+    # --- Всегда сбрасывать pending у аватарки ---
+    avatar.request_status = 0
+    avatar.is_approved = 0
+    avatar.is_main = 0
     db.commit()
-    return {"message": "Запрос отменён"}
+    return {"message": "Pending request cancelled"}
 
 @router.post("/avatar-requests/{avatar_id}/reject")
 async def reject_avatar_request(
@@ -474,16 +480,23 @@ async def reject_avatar_request(
     avatar = db.query(UserAvatar).filter(UserAvatar.id == avatar_id).first()
     if not avatar:
         raise HTTPException(status_code=404, detail="Avatar not found")
-    req = db.query(AvatarRequestMessage).filter(AvatarRequestMessage.avatar_id == avatar_id, AvatarRequestMessage.status == 'pending').first()
+    req = db.query(AvatarRequestMessage).filter(AvatarRequestMessage.avatar_id == avatar_id, AvatarRequestMessage.status == 1).first()
     if not req:
         raise HTTPException(status_code=404, detail="Request not found")
-    avatar.request_status = 'rejected'
+    was_main = avatar.is_main
+    avatar.request_status = 2  # rejected
     avatar.is_approved = 0
     avatar.is_main = 0
-    req.status = 'rejected'
+    req.status = 2
     req.reviewed_by = current_user.id
     req.reviewed_at = datetime.utcnow()
     db.commit()
+    # --- Исправление: если отклонена основная аватарка, назначить другую одобренную как основную ---
+    if was_main:
+        other_approved = db.query(UserAvatar).filter(UserAvatar.user_id == avatar.user_id, UserAvatar.is_approved == 1, UserAvatar.id != avatar.id).order_by(UserAvatar.created_at.desc()).first()
+        if other_approved:
+            other_approved.is_main = 1
+            db.commit()
     return {"message": "Avatar request rejected"}
 
 @router.delete("/avatars/{avatar_id}")
@@ -538,7 +551,7 @@ async def get_avatar_requests(
     if current_user.role not in ["admin", "superadmin"]:
         raise HTTPException(status_code=403, detail="Not enough permissions")
     # Показываем только pending заявки
-    requests = db.query(AvatarRequestMessage).options(joinedload(AvatarRequestMessage.user), joinedload(AvatarRequestMessage.avatar)).filter(AvatarRequestMessage.status == 'pending').all()
+    requests = db.query(AvatarRequestMessage).options(joinedload(AvatarRequestMessage.user), joinedload(AvatarRequestMessage.avatar)).filter(AvatarRequestMessage.status == 1).all()
     result = []
     for req in requests:
         result.append({

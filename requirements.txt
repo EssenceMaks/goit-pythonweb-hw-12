@@ -8,13 +8,13 @@ faker
 itsdangerous
 email-validator
 python-jose
-passlib
+passlib>=1.7.4
 python-multipart
 python-socketio
 python-redis
 jinja2
 aiosmtplib
-bcrypt
+bcrypt>=4.0.1
 cloudinary
 redis
 fastapi-limiter
