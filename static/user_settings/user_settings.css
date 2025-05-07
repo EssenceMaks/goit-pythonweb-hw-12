@@ -672,3 +672,19 @@
   animation: spin 1s linear infinite;
   display: inline-block;
 }
+
+.login-link {
+  color: #87f06c;
+  text-decoration: none;
+  font-size: 0.95rem;
+  margin-top: 4px;
+  align-self: flex-end;
+}
+
+.login-link a {
+  color: #87f06c;
+  text-decoration: none;
+  font-size: 0.95rem;
+  margin-top: 4px;
+  align-self: flex-end;
+}

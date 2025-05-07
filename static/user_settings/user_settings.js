@@ -162,6 +162,25 @@ async function renderUserSettings() {
   }
 }
 
+// --- Функция для показа окна после сброса пароля ---
+function showPasswordResetSent(email) {
+  const contactsList = document.getElementById('contacts-list');
+  if (!contactsList) return;
+  contactsList.innerHTML = `
+    <div class="glass-container password-reset-info">
+      <h2>Скидання паролю</h2>
+      <div class="info-text">
+        На вашу електронну пошту <b>${email}</b> надіслано лист для відновлення паролю.<br>
+        Перевірте пошту та завершіть процедуру скидання паролю за посиланням у листі.
+      </div>
+      <div class="login-link" style="margin-top:24px;">
+        <a href="/login" class="login-link">Повернутися до входу</a>
+      </div>
+    </div>
+  `;
+  contactsList.setAttribute('data-mode', 'reset-password-info');
+}
+
 // Настройка обработчиков событий для кнопок в настройках
 function setupSettingsEventHandlers() {
   // Кнопка возврата к контактам - должна быть единственным способом выйти из настроек
@@ -193,31 +212,28 @@ function setupSettingsEventHandlers() {
   // Сброс пароля - перенаправляем на страницу /forgot с автозаполненным email
   const resetPasswordBtn = document.querySelector('.reset-password-btn');
   if (resetPasswordBtn) {
-    resetPasswordBtn.addEventListener('click', function(e) {
-      e.stopPropagation(); // Предотвращаем всплытие события
-      
-      // Проверяем, есть ли у нас данные о пользователе
+    resetPasswordBtn.addEventListener('click', async function(e) {
+      e.stopPropagation();
       if (currentUserData && currentUserData.email) {
         if (confirm('Ви дійсно хочете скинути пароль? Вас буде вилогінено з системи, і на вашу пошту буде відправлено посилання для встановлення нового пароля.')) {
-          // Формируем URL с параметром email для страницы /forgot
-          const forgotUrl = `/forgot?email=${encodeURIComponent(currentUserData.email)}`;
-          
-          // Выходим из системы и перенаправляем на страницу сброса пароля
-          authorizedFetch('/logout', { method: 'GET' })
-            .then(() => {
-              // Удаляем куки с токеном
-              document.cookie = 'access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-              // Перенаправляем на страницу забытого пароля
-              window.location.href = forgotUrl;
-            })
-            .catch((error) => {
-              console.error('Ошибка при выходе из системы:', error);
-              // Даже при ошибке перенаправляем на страницу сброса пароля
-              window.location.href = forgotUrl;
+          // Запрос на сброс пароля (отправка письма)
+          try {
+            const resp = await fetch('/users/reset-password', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                ...getAuthHeader?.()
+              },
+              body: JSON.stringify({ email: currentUserData.email })
             });
+            // Разлогиниваем пользователя (можно вызвать /logout)
+            await fetch('/logout', { method: 'GET', credentials: 'include' });
+            // Показываем окно-информацию
+            showPasswordResetSent(currentUserData.email);
+          } catch (err) {
+            alert('Сталася помилка при надсиланні листа. Спробуйте ще раз.');
+          }
         }
-      } else {
-        alert('Не вдалося отримати адресу електронної пошти. Спробуйте перезавантажити сторінку або скористатися сторінкою відновлення пароля вручну.');
       }
     });
   }

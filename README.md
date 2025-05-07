@@ -204,11 +204,11 @@ docker-compose up --build
 - Для адміністраторів (Admin) — додаткові можливості модерації та керування журналами дій
 - Для суперадміністраторів (Super Admin) — повний доступ до всіх функцій керування всіма обліковими записами
 
-### Рекомендації з використання мультилогіну
-- Регулярно перевіряйте список активних сесій та завершуйте підозрілі
-- Використовуйте функцію "Вийти з усіх пристроїв" при підозрі на компрометацію акаунта
-- Увімкніть повідомлення про вхід з нових пристроїв для підвищення безпеки
-- Не розголошуйте токени доступу та інші дані автентифікації
+### Рекомендації з безпеки
+- Змініть пароль Super Admin одразу після першого входу
+- Обмежуйте кількість користувачів з роллю Admin
+- Регулярно перевіряйте активність адміністраторів через логи
+- При зміні конфігурації в .env файлі перезапустіть сервер для застосування змін
 
 ---
 
@@ -286,10 +286,75 @@ docker-compose up --build
 
 ---
 
+---
+
+## Повний список API (fetch) запитів, які виконує фронтенд
+
+**User Settings:**
+- `GET /users/me` — отримати дані користувача
+- `GET /logout` — вихід із системи
+- `GET /users/avatar-requests` — отримати запити на аватари
+- `POST /users/{userId}/set-role` — змінити роль користувача
+- `PATCH /users/update/username` — змінити ім'я користувача
+- `PATCH /users/update/password` — змінити пароль
+
+**User Avatar Settings:**
+- `GET /users/avatars` — отримати список аватарів
+- `POST /users/avatars/upload` — завантажити новий аватар
+- `POST /users/avatars/{avatarId}/request-main` — подати запит на встановлення основного аватара
+- `POST /users/avatar-requests/{avatarId}/cancel` — скасувати запит на аватар
+- `PATCH /users/avatars/{avatarId}/set-main` — встановити аватар основним
+- `DELETE /users/avatars/{avatarId}` — видалити аватар
+
+**Menu:**
+- `GET /users/me` — отримати дані користувача (аватар, ім'я)
+- `GET /db/check-state` — перевірити стан бази даних
+- `POST /users/{userId}/set-role` — змінити роль користувача
+
+**Popups:**
+- `POST <form.action або window.location.pathname>` — надсилання форми контакту
+
+**Contacts:**
+- Використовуються функції fetchAndRenderContactsInner та fetchContact, які виконують запити:
+  - `GET /api/contacts` — отримати контакти
+  - `GET /api/contacts/{id}` — отримати контакт за id
 
 ---
 
-## Рішення поширених проблем
+## Використання Redis
 
-- **Помилка підключення до БД**: Перевірте параметри в .env файлі та доступність PostgreSQL.
-- **Помилки з email**: Переконайтеся, що налаштування SMTP в .env файлі коректні.
+Redis використовується лише для обмеження кількості запитів (rate limiting) через fastapi-limiter:
+
+- Ініціалізація з'єднання з Redis (`REDIS_URL` з env)
+- Обмеження кількості запитів на ендпоінти (наприклад, 25 запитів на хвилину на `/users/me`)
+- Якщо Redis недоступний — обмеження не застосовуються
+
+**Redis не використовується для зберігання користувацьких даних чи сесій, лише для лімітування запитів.**
+
+---
+
+## Структура бази даних (PostgreSQL)
+
+Docker піднімає сервіси:
+- `db` (PostgreSQL 15)
+- `redis` (alpine)
+- `web` (FastAPI)
+
+### Основні таблиці та їх структура
+
+| Таблиця                | Поля                                                                                                                           |
+|------------------------|--------------------------------------------------------------------------------------------------------------------------------|
+| users                  | id, username, email, hashed_password, role, is_verified, verification_code                                                     |
+| user_avatars           | id, user_id, file_path, cloudinary_public_id, is_approved, is_main, request_type, request_status, created_at, updated_at       |
+| avatar_request_messages| id, user_id, avatar_id, message, status, created_at, reviewed_by, reviewed_at                                                  |
+| contacts               | id, user_id, first_name, last_name, email, birthday, extra_info                                                                |
+| phone_numbers          | id, contact_id, number, label                                                                                                  |
+| groups                 | id, name                                                                                                                       |
+| contact_group          | contact_id, group_id                                                                                                           |
+| avatars                | id, contact_id, file_path, is_main, show                                                                                       |
+| photos                 | id, contact_id, file_path, is_main, show                                                                                       |
+| password_resets        | id, user_id, token, created_at, expires_at, is_used                                                                            |
+
+**Всі зв'язки та типи полів описані у models.py.**
+
+---
