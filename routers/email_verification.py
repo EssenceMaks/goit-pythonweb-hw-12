@@ -45,9 +45,12 @@ class LoginRequest(BaseModel):
 
 @router.post("/register")
 async def register_user(data: RegisterRequest, db: Session = Depends(get_db)):
-    existing = db.query(User).filter(User.email == data.email).first()
-    if existing:
+    existing_email = db.query(User).filter(User.email == data.email).first()
+    if existing_email:
         raise HTTPException(status_code=400, detail="Email уже зарегистрирован")
+    existing_username = db.query(User).filter(User.username == data.username).first()
+    if existing_username:
+        raise HTTPException(status_code=400, detail="Ім'я зайнято, створіть інше")
     code = "{:06d}".format(random.randint(0, 999999))
     user = User(
         username=data.username,

@@ -11,7 +11,7 @@ from schemas import Contact as ContactSchema, ContactCreate, ContactUpdate, User
 # Используем обновлённые функции авторизации
 from auth import get_current_user, check_contact_access
 
-router = APIRouter(tags=["Contacts"])
+router = APIRouter(prefix="/contacts", tags=["Contacts"])
 
 def get_db():
     db = SessionLocal()

@@ -11,11 +11,16 @@ from schemas import UserResponse
 from utils_cloudinary import upload_image, delete_image
 # Импортируем функцию ограничения запросов
 from rate_limiter import check_rate_limit_me
+# Import sessions API
+from routers.users_sessions import router as sessions_router
 
 router = APIRouter(
     prefix="/users",
     tags=["users"],
 )
+"""
+User-related endpoints, including login, user info, and session management.
+"""
 
 @router.get("/me", response_model=UserResponse, dependencies=[Depends(check_rate_limit_me)])
 async def get_current_user_info(request: Request, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):

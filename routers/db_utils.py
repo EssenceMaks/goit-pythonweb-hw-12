@@ -15,7 +15,7 @@ from typing import Optional
 optional_oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/token", auto_error=False)
 
 # Удаляем префикс "/db", так как он уже указан в main.py при подключении роутера
-router = APIRouter(tags=["Database Utils"])
+router = APIRouter(prefix="/db", tags=["Database Utils"])
 faker = Faker()
 
 # Функция для получения параметров подключения к базе данных

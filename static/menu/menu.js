@@ -510,7 +510,36 @@ function showConfirmPopup(message, onYes) {
 // Функції для управління кількома обліковими записами
 let knownAccounts = [];
 
-// Ініціалізація при завантаженні сторінки
+// Загрузка активных сессий из backend
+async function loadActiveSessions() {
+    try {
+        // Используем authorizedFetch или authorizedRequest
+        const fetchFunction = window.authorizedFetch || window.authorizedRequest || fetch;
+        let sessions = await fetchFunction('/sessions/active');
+        if (sessions && Array.isArray(sessions)) {
+            knownAccounts = sessions.map(acc => ({
+                id: acc.id,
+                username: acc.username,
+                email: acc.email,
+                role: acc.role,
+                active: true // Все из Redis — активные
+            }));
+            updateAccountsDropdown();
+        } else {
+            console.warn('Не удалось получить список активных сессий');
+        }
+    } catch (e) {
+        console.error('Ошибка при загрузке активных сессий:', e);
+    }
+}
+
+// Инициализация при загрузке страницы
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', loadActiveSessions);
+} else {
+    loadActiveSessions();
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     // Додавання обробника кліку для випадаючого меню
     const accountDropdown = document.querySelector('.account-dropdown');
@@ -621,9 +650,11 @@ function updateAccountsDropdown() {
         
         const accountItem = document.createElement('div');
         accountItem.className = 'account-item' + (isCurrentAccount ? ' active-account' : '');
+        // Зеленый кружок для активных
+        const marker = account.active ? '<span class="active-marker" title="Активная сессия" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#3ecf4a;margin-right:6px;vertical-align:middle;"></span>' : '<span class="inactive-marker" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#ccc;margin-right:6px;vertical-align:middle;"></span>';
         accountItem.innerHTML = `
             <div class="account-info">
-                <div class="account-name">${displayName}</div>
+                ${marker}<div class="account-name">${displayName}</div>
                 <div class="account-role">${account.role || 'user'}</div>
             </div>
             ${isCurrentAccount ? '<div class="current-marker">✓</div>' : ''}

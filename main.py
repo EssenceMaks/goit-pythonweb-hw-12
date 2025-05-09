@@ -20,11 +20,14 @@ import re
 
 # Добавляем импорт роутера users
 from routers import contacts, groups, db_utils, email_verification, users
+from routers.users_sessions import router as sessions_router
 from database import SessionLocal, engine, Base, is_render_environment, is_docker_environment
 from crud import get_user_by_username, update_user_role, get_user_by_id
 import models
 import os
 from dotenv import load_dotenv
+# Redis session utility
+from redis_client import set_user_session
 # Импортируем функции из auth.py
 from auth import pwd_context, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES, SECRET_KEY, ALGORITHM
 # Добавляем импорт нашей новой функции отправки email
@@ -100,6 +103,14 @@ def ensure_database_exists():
 # Инициализация приложения
 app = FastAPI(title="Contacts API")
 
+# Register routers with explicit prefixes
+app.include_router(contacts.router)
+app.include_router(groups.router)
+app.include_router(db_utils.router)
+app.include_router(users.router)
+app.include_router(email_verification.router)
+app.include_router(sessions_router)
+
 # Настройка CORS
 app.add_middleware(
     CORSMiddleware,
@@ -109,15 +120,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Подключаем роутеры
-app.include_router(contacts.router, prefix="/contacts")
-app.include_router(groups.router, prefix="/groups")
-app.include_router(db_utils.router, prefix="/db")
-# Добавляем подключение роутера users
-app.include_router(users.router)
-# Изменяем маршрут для email_verification, убирая префикс /verify,
-# чтобы /auth/register был доступен
-app.include_router(email_verification.router)
+# (Роутеры уже зарегистрированы выше с префиксами, повторная регистрация не требуется)
 
 # Создаем таблицы базы данных при запуске приложения
 @app.on_event("startup")
@@ -233,28 +236,55 @@ async def get_token_from_cookie(access_token: Optional[str] = Cookie(None)):
     return None
 
 # Обновление редиректов для использования относительных URL
-@app.get("/")
-async def root(request: Request):
-    user = request.session.get("user")
-    if user and "username" in user:
-        role = user.get("role", "user")
-        # Удаляем домен из email для URL
-        clean_username = clean_username_for_url(user['username'])
-        return RedirectResponse(url=f"/{clean_username}_{role}/", status_code=303)
-    return RedirectResponse(url="/login", status_code=303)
+from fastapi.responses import HTMLResponse
 
-@app.get("/login")
+@app.get("/", response_class=HTMLResponse)
+async def root(request: Request):
+    try:
+        logger.info("[ROOT] Accessed / endpoint.")
+        logger.info(f"[ROOT] Session contents: {dict(request.session) if hasattr(request, 'session') else 'No session'}")
+        logger.info(f"[ROOT] Request cookies: {request.cookies}")
+        user = request.session.get("user")
+        if user and "username" in user:
+            role = user.get("role", "user")
+            clean_username = clean_username_for_url(user['username'])
+            logger.info(f"[ROOT] Authenticated user found: {user['username']} with role {role}")
+            return RedirectResponse(url=f"/{clean_username}_{role}/", status_code=303)
+        logger.info("[ROOT] No authenticated user, returning login.html")
+        return templates.TemplateResponse(
+            "login.html",
+            {
+                "request": request,
+                "password_reset_success": False
+            }
+        )
+    except Exception as exc:
+        logger.error(f"[ROOT] Exception: {exc}")
+        return HTMLResponse("Internal Server Error", status_code=500)
+
+
+
+from fastapi.responses import HTMLResponse
+
+@app.get("/login", response_class=HTMLResponse)
 async def login(request: Request):
-    # Проверяем, было ли успешное изменение пароля
-    password_reset_success = request.session.pop("password_reset_success", False)
-    
-    return templates.TemplateResponse(
-        "login.html", 
-        {
-            "request": request, 
-            "password_reset_success": password_reset_success
-        }
-    )
+    try:
+        logger.info("[LOGIN] Accessed /login endpoint.")
+        logger.info(f"[LOGIN] Session contents: {dict(request.session) if hasattr(request, 'session') else 'No session'}")
+        logger.info(f"[LOGIN] Request cookies: {request.cookies}")
+        password_reset_success = request.session.pop("password_reset_success", False)
+        logger.info(f"[LOGIN] password_reset_success: {password_reset_success}")
+        return templates.TemplateResponse(
+            "login.html", 
+            {
+                "request": request, 
+                "password_reset_success": password_reset_success
+            }
+        )
+    except Exception as exc:
+        logger.error(f"[LOGIN] Exception: {exc}")
+        return HTMLResponse("Internal Server Error", status_code=500)
+
 
 @app.post("/login")
 async def login_post(request: Request, username: str = Form(...), password: str = Form(...)):
@@ -277,12 +307,15 @@ async def login_post(request: Request, username: str = Form(...), password: str 
             superadmin_id = superadmin_user.id if superadmin_user else -1
             
             # Сохраняем данные суперадмина в сессии с валидным ID
-            request.session["user"] = {
-                "id": superadmin_id,  # Используем -1 как специальный ID для суперадмина, если нет в БД
+            user_session_data = {
+                "id": superadmin_id,
                 "username": username,
-                "email": username,  # Добавляем email для суперадмина
+                "email": username,
                 "role": "superadmin"
             }
+            request.session["user"] = user_session_data
+            # Сохраняем сессию в Redis
+            set_user_session(superadmin_id, user_session_data, ttl=1800)
             
             # Создаем JWT-токен для API-запросов суперадмина
             access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -313,12 +346,15 @@ async def login_post(request: Request, username: str = Form(...), password: str 
                 return templates.TemplateResponse("login.html", {"request": request, "error": "Пожалуйста, подтвердите ваш email перед входом"})
             
             # Сохраняем данные пользователя в сессии
-            request.session["user"] = {
+            user_session_data = {
                 "id": user.id,
                 "username": user.username,
-                "email": user.email,  # Добавляем email пользователя
-                "role": user.role or "user"  # Используем роль из БД или по умолчанию "user"
+                "email": user.email,
+                "role": user.role or "user"
             }
+            request.session["user"] = user_session_data
+            # Сохраняем сессию в Redis
+            set_user_session(user.id, user_session_data, ttl=1800)
             
             # Создаем JWT-токен для API-запросов
             access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
