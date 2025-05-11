@@ -11,3 +11,4 @@ instance/
 .DS_Store
 *.egg-info/
 .mypy_cache/
+__test

@@ -510,34 +510,47 @@ function showConfirmPopup(message, onYes) {
 // Функції для управління кількома обліковими записами
 let knownAccounts = [];
 
-// Загрузка активных сессий из backend
-async function loadActiveSessions() {
+// --- Обновление статусов аккаунтов через /accounts/status ---
+async function updateAccountStatuses() {
+    if (!knownAccounts.length) return;
     try {
-        // Используем authorizedFetch или authorizedRequest
+        const userIds = knownAccounts.map(acc => acc.id);
         const fetchFunction = window.authorizedFetch || window.authorizedRequest || fetch;
-        let sessions = await fetchFunction('/sessions/active');
-        if (sessions && Array.isArray(sessions)) {
-            knownAccounts = sessions.map(acc => ({
-                id: acc.id,
-                username: acc.username,
-                email: acc.email,
-                role: acc.role,
-                active: true // Все из Redis — активные
-            }));
+        const resp = await fetchFunction('/accounts/status', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...getAuthHeader()
+            },
+            body: JSON.stringify(userIds),
+            credentials: 'include'
+        });
+        let statuses = resp;
+        // Если fetchFunction возвращает Response, нужно .json()
+        if (resp && typeof resp.json === 'function') {
+            statuses = await resp.json();
+        }
+        if (statuses && typeof statuses === 'object') {
+            knownAccounts.forEach(acc => {
+                acc.status = statuses[acc.id] || 'gray';
+            });
             updateAccountsDropdown();
-        } else {
-            console.warn('Не удалось получить список активных сессий');
         }
     } catch (e) {
-        console.error('Ошибка при загрузке активных сессий:', e);
+        console.error('Ошибка при обновлении статусов аккаунтов:', e);
     }
 }
 
+
 // Инициализация при загрузке страницы
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', loadActiveSessions);
+    document.addEventListener('DOMContentLoaded', function() {
+        loadKnownAccounts();
+        updateAccountStatuses();
+    });
 } else {
-    loadActiveSessions();
+    loadKnownAccounts();
+    updateAccountStatuses();
 }
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -639,35 +652,33 @@ function updateAccountsDropdown() {
     
     // Додаємо кожен відомий обліковий запис
     knownAccounts.forEach(account => {
-        // Перевіряємо наявність ID для порівняння
+        // Проверяем, текущий ли это аккаунт
         const isCurrentAccount = account.id === window.currentUserId;
-        
-        // Обрізаємо довгий email до 15 символів та додаємо крапку з комою
+        // Имя
         let displayName = account.email || account.username || 'Неизвестный пользователь';
         if (displayName.length > 15) {
             displayName = displayName.substring(0, 15) + '...';
         }
-        
         const accountItem = document.createElement('div');
         accountItem.className = 'account-item' + (isCurrentAccount ? ' active-account' : '');
-        // Зеленый кружок для активных
-        const marker = account.active ? '<span class="active-marker" title="Активная сессия" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#3ecf4a;margin-right:6px;vertical-align:middle;"></span>' : '<span class="inactive-marker" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#ccc;margin-right:6px;vertical-align:middle;"></span>';
+        // Статусная точка
+        let dotColor = '#bbb'; // gray by default
+        if (account.status === 'green') dotColor = '#4CAF50';
+        const statusDot = `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px;background:${dotColor};vertical-align:middle;"></span>`;
         accountItem.innerHTML = `
             <div class="account-info">
-                ${marker}<div class="account-name">${displayName}</div>
-                <div class="account-role">${account.role || 'user'}</div>
+                ${statusDot}<span class="account-name">${displayName}</span>
+                <span class="account-role">(${account.role || 'user'})</span>
             </div>
             ${isCurrentAccount ? '<div class="current-marker">✓</div>' : ''}
         `;
-        
-        // Додаємо обробник кліку для переключення на цей обліковий запис
+        // Клик по аккаунту
         if (!isCurrentAccount) {
             accountItem.addEventListener('click', () => switchAccount(account));
         }
-        
         dropdownContent.appendChild(accountItem);
     });
-    
+
     // Додаємо розділювач, якщо є якісь облікові записи
     if (knownAccounts.length > 0) {
         const divider = document.createElement('div');

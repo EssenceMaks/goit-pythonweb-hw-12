@@ -427,6 +427,10 @@ def current_user(request: Request):
 
 @app.get("/logout")
 def logout(request: Request):
+    from redis_client import delete_user_session
+    user = request.session.get("user")
+    if user and user.get("id"):
+        delete_user_session(user["id"])
     request.session.clear()
     response = RedirectResponse("/login")
     # Удаляем cookie с токеном
@@ -454,6 +458,19 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         db.close()
 
 # Эндпоинт для проверки статуса авторизации
+
+from fastapi import Body
+from typing import List, Dict
+
+@app.post("/accounts/status")
+async def accounts_status(user_ids: List[int] = Body(...)):
+    from redis_client import get_user_session
+    result = {}
+    for uid in user_ids:
+        session = get_user_session(uid)
+        result[uid] = "green" if session else "gray"
+    return result
+
 @app.get("/auth/status")
 async def auth_status(
     request: Request,
