@@ -644,41 +644,42 @@ function addToKnownAccounts(account) {
 function updateAccountsDropdown() {
     const dropdownContent = document.querySelector('.dropdown-content');
     if (!dropdownContent) return;
-    
-    // Очищаємо поточне вміст
     dropdownContent.innerHTML = '';
-    
-    console.log('Оновлення випадаючого меню облікових записів:', knownAccounts);
-    
-    // Додаємо кожен відомий обліковий запис
-    knownAccounts.forEach(account => {
-        // Проверяем, текущий ли это аккаунт
+
+    // Сортируем: текущий аккаунт — первый
+    let sortedAccounts = [...knownAccounts];
+    if (window.currentUserId) {
+        sortedAccounts.sort((a, b) => (b.id === window.currentUserId ? 1 : 0) - (a.id === window.currentUserId ? 1 : 0));
+    }
+
+    sortedAccounts.forEach(account => {
         const isCurrentAccount = account.id === window.currentUserId;
-        // Имя
-        let displayName = account.email || account.username || 'Неизвестный пользователь';
-        if (displayName.length > 15) {
-            displayName = displayName.substring(0, 15) + '...';
-        }
+        // Обрезаем имя и почту до 8 символов
+        let displayName = (account.username || '').substring(0, 8);
+        let displayEmail = (account.email || '').substring(0, 8);
+        let displayRole = account.role || 'user';
+        let avatarUrl = account.avatar_url || '/static/menu/img/avatar.png';
+        
         const accountItem = document.createElement('div');
         accountItem.className = 'account-item' + (isCurrentAccount ? ' active-account' : '');
-        // Статусная точка
-        let dotColor = '#bbb'; // gray by default
-        if (account.status === 'green') dotColor = '#4CAF50';
-        const statusDot = `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px;background:${dotColor};vertical-align:middle;"></span>`;
+        
         accountItem.innerHTML = `
-            <div class="account-info">
-                ${statusDot}<span class="account-name">${displayName}</span>
-                <span class="account-role">(${account.role || 'user'})</span>
+          <div class="account-grid">
+            <div class="avatar-cell">
+              <img class="account-avatar" src="${avatarUrl}" alt="avatar">
+              <span class="status-dot ${account.status === 'green' ? 'dot-green' : 'dot-gray'}"></span>
+              ${isCurrentAccount ? '<span class="checkmark">&#10003;</span>' : ''}
             </div>
-            ${isCurrentAccount ? '<div class="current-marker">✓</div>' : ''}
+            <div class="username-cell">${displayName}</div>
+            <div class="email-cell">${displayEmail}</div>
+            <div class="role-cell">${displayRole}</div>
+          </div>
         `;
-        // Клик по аккаунту
         if (!isCurrentAccount) {
             accountItem.addEventListener('click', () => {
                 if (account.status === 'green') {
                     switchAccount(account);
                 } else {
-                    // Перелогин для неактивных (серых) аккаунтов
                     let loginUrl = '/login';
                     if (account.email) {
                         loginUrl += '?email=' + encodeURIComponent(account.email);
@@ -689,21 +690,20 @@ function updateAccountsDropdown() {
         }
         dropdownContent.appendChild(accountItem);
     });
-
-    // Додаємо розділювач, якщо є якісь облікові записи
-    if (knownAccounts.length > 0) {
+    // Разделитель и кнопка добавления аккаунта
+    if (sortedAccounts.length > 0) {
         const divider = document.createElement('div');
         divider.className = 'dropdown-divider';
         dropdownContent.appendChild(divider);
     }
-    
-    // Додаємо кнопку "Add Login"
     const addLoginLink = document.createElement('a');
     addLoginLink.href = '/login';
     addLoginLink.className = 'add-login-link';
     addLoginLink.textContent = 'Додати обліковий запис';
     dropdownContent.appendChild(addLoginLink);
 }
+
+
 
 // Переключення на інший обліковий запис
 function switchAccount(account) {

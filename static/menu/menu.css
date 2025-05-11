@@ -100,6 +100,8 @@
 /* Добавляем класс для JS-переключения */
 .dropdown-content.show {
     display: block;
+    width: 160px;
+    background-color: #181d23;
 }
 
 .add-login-link {

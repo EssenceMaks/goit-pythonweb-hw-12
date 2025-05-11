@@ -1,0 +1,108 @@
+/* Grid layout for account item */
+.account-item {
+  padding: 10px 0;
+  cursor: pointer;
+}
+.account-item.active-account {
+  background: #f0f0f8;
+  font-weight: bold;
+  width: 170px;
+}
+.account-grid {
+  display: grid;
+  grid-template-columns: 76px 1fr;
+  grid-template-rows: 26px 26px 26px;
+  grid-template-areas:
+    "avatar username"
+    "avatar email"
+    "avatar role";
+  align-items: center;
+  column-gap: 12px;
+}
+.avatar-cell {
+  grid-area: avatar;
+  position: relative;
+  width: 76px;
+  height: 76px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  left: -10px;
+  background-color: #8ec7c7;
+}
+.account-avatar {
+  width: 76px;
+  height: 76px;
+  border-radius: 5px;
+  object-fit: cover;
+  border: 2px solid #ddd;
+}
+.status-dot {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  background: #bbb;
+  z-index: 2;
+}
+.status-dot.dot-green {
+  background: #4CAF50;
+}
+.status-dot.dot-gray {
+  background: #bbb;
+}
+.checkmark {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  background: #fff;
+  color: #4CAF50;
+  border-radius: 50%;
+  font-size: 16px;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  border: 2px solid #4CAF50;
+}
+.username-cell {
+  grid-area: username;
+  font-size: 16px;
+  font-weight: 500;
+  color: #58db5d;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.email-cell {
+  grid-area: email;
+  font-size: 14px;
+  color: #666;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.role-cell {
+  grid-area: role;
+  font-size: 13px;
+  color: #888;
+}
+.add-login-link {
+  display: block;
+  margin: 10px 0 0 0;
+  color: #1976d2;
+  text-align: center;
+  text-decoration: none;
+  font-weight: 500;
+}
+.add-login-link:hover {
+  text-decoration: underline;
+}
+.dropdown-divider {
+  height: 1px;
+  background: #e0e0e0;
+  margin: 8px 0;
+}

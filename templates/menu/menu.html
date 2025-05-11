@@ -12,7 +12,8 @@
     <div class="account-dropdown">
       <span class="account-label">login: {{ user.email[:15] + '...' if user.email|length > 15 else user.email }}</span>
       <span class="dropdown-arrow">▼</span>
-      <div class="dropdown-content">
+      <link rel="stylesheet" href="/static/menu/menu_multi_acc.css">
+<div class="dropdown-content">
         <a href="/login" class="add-login-link">Add Login</a>
       </div>
     </div>
