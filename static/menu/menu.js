@@ -664,12 +664,12 @@ function updateAccountsDropdown() {
     let sortedAccounts = Object.values(uniqueMap);
     // Сортируем: текущий аккаунт — первый
     if (window.currentUserId) {
-        sortedAccounts.sort((a, b) => (b.id === window.currentUserId ? 1 : 0) - (a.id === window.currentUserId ? 1 : 0));
+        sortedAccounts.sort((a, b) => (String(a.id) === String(window.currentUserId) ? -1 : String(b.id) === String(window.currentUserId) ? 1 : 0));
     }
 
     // Фильтрация и подготовка аватарок по ролям
     sortedAccounts.forEach(account => {
-        const isCurrentAccount = account.id === window.currentUserId;
+        const isCurrentAccount = String(account.id) === String(window.currentUserId);
         let displayName = (account.username || '').substring(0, 8);
         let displayEmail = (account.email || '').substring(0, 8);
         let displayRole = account.role || 'user';
