@@ -674,7 +674,18 @@ function updateAccountsDropdown() {
         `;
         // Клик по аккаунту
         if (!isCurrentAccount) {
-            accountItem.addEventListener('click', () => switchAccount(account));
+            accountItem.addEventListener('click', () => {
+                if (account.status === 'green') {
+                    switchAccount(account);
+                } else {
+                    // Перелогин для неактивных (серых) аккаунтов
+                    let loginUrl = '/login';
+                    if (account.email) {
+                        loginUrl += '?email=' + encodeURIComponent(account.email);
+                    }
+                    window.location.href = loginUrl;
+                }
+            });
         }
         dropdownContent.appendChild(accountItem);
     });

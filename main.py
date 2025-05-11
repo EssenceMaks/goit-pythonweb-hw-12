@@ -267,7 +267,7 @@ async def root(request: Request):
 from fastapi.responses import HTMLResponse
 
 @app.get("/login", response_class=HTMLResponse)
-async def login(request: Request):
+async def login(request: Request, email: str = None):
     try:
         logger.info("[LOGIN] Accessed /login endpoint.")
         logger.info(f"[LOGIN] Session contents: {dict(request.session) if hasattr(request, 'session') else 'No session'}")
@@ -275,10 +275,11 @@ async def login(request: Request):
         password_reset_success = request.session.pop("password_reset_success", False)
         logger.info(f"[LOGIN] password_reset_success: {password_reset_success}")
         return templates.TemplateResponse(
-            "login.html", 
+            "login.html",
             {
-                "request": request, 
-                "password_reset_success": password_reset_success
+                "request": request,
+                "password_reset_success": password_reset_success,
+                "email": email
             }
         )
     except Exception as exc:
@@ -570,7 +571,8 @@ async def change_user_role(
 @app.get("/switch_account/{user_id}", response_class=RedirectResponse)
 async def switch_account(
     request: Request,
-    user_id: int
+    user_id: int,
+    token: Optional[str] = Depends(get_token_from_cookie)
 ):
     # Проверка на суперадмина (ID = -1)
     if user_id == -1:
@@ -604,8 +606,7 @@ async def switch_account(
             }, 
             expires_delta=access_token_expires
         )
-        
-        # Удаляем домен из email для URL
+                # Удаляем домен из email для URL
         clean_username = clean_username_for_url(superadmin_username)
         response = RedirectResponse(url=f"/{clean_username}_superadmin/", status_code=303)
         

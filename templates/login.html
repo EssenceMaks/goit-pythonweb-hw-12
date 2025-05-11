@@ -4,7 +4,7 @@
     <form method="post" action="/login">
         <h2>Login</h2>
         <p>Please login to access our services</p>
-        <input type="text" name="username" placeholder="User Name" required>
+        <input type="text" name="username" placeholder="User Name" required value="{{ email | default('') }}">
         <div class="password-wrapper">
             <input type="password" name="password" placeholder="Password" id="password-input" required>
             <span class="toggle-password" onclick="togglePassword()">
