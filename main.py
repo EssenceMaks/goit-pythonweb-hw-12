@@ -176,22 +176,31 @@ async def startup_db_and_tables():
             superadmin_username = os.getenv("SUPERADMIN_USERNAME")
             superadmin_password = os.getenv("SUPERADMIN_PASSWORD")
             superadmin_email = os.getenv("SUPER_ADMIN_EMAIL", superadmin_username)
-            
-            # Если email не содержит @, добавляем домен по умолчанию
-            if superadmin_email and '@' not in superadmin_email:
-                superadmin_email = f"{superadmin_email}@example.com"
-            
+
+            # Validate email format using Pydantic's EmailStr
+            from pydantic import ValidationError
+            valid_email = None
+            try:
+                # If not present or not valid, fallback to username@example.com
+                if not superadmin_email or '@' not in superadmin_email:
+                    superadmin_email = f"{superadmin_username}@example.com"
+                valid_email = EmailStr(superadmin_email)
+            except ValidationError:
+                logger.warning(f"SUPER_ADMIN_EMAIL '{superadmin_email}' is invalid. Using default.")
+                valid_email = EmailStr(f"{superadmin_username}@example.com")
+                superadmin_email = str(valid_email)
+
             if superadmin_username and superadmin_password:
                 # Проверяем, существует ли уже супер-админ
                 existing_admin = get_user_by_username(db, superadmin_username)
-                
+
                 if not existing_admin:
                     logger.info(f"Создаем учетную запись супер-админа: {superadmin_username}")
                     # Создаем запись супер-админа в базе данных
                     hashed_password = models.User.get_password_hash(superadmin_password)
                     superadmin = models.User(
                         username=superadmin_username,
-                        email=superadmin_email,
+                        email=str(valid_email),
                         hashed_password=hashed_password,
                         role="superadmin",
                         is_verified=True  # Супер-админ не требует верификации
@@ -200,6 +209,14 @@ async def startup_db_and_tables():
                     db.commit()
                     logger.info("Учетная запись супер-админа успешно создана")
                 else:
+                    # Check if existing superadmin has invalid email
+                    try:
+                        EmailStr(existing_admin.email)
+                    except ValidationError:
+                        logger.warning(f"Существующий супер-админ имеет некорректный email: {existing_admin.email}. Исправляем на {valid_email}.")
+                        existing_admin.email = str(valid_email)
+                        db.commit()
+                        logger.info("Email супер-админа обновлен на валидный.")
                     logger.info("Учетная запись супер-админа уже существует")
         except Exception as e:
             logger.error(f"Ошибка при создании супер-админа: {e}")

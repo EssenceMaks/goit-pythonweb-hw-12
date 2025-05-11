@@ -646,23 +646,54 @@ function updateAccountsDropdown() {
     if (!dropdownContent) return;
     dropdownContent.innerHTML = '';
 
+    // Удаляем дубли по id: если среди дублей есть avatar_url — оставляем его, иначе последний
+    const uniqueMap = {};
+    knownAccounts.forEach(acc => {
+        if (!uniqueMap[acc.id]) {
+            uniqueMap[acc.id] = acc;
+        } else {
+            // Если новый вариант содержит avatar_url — используем его
+            if ((acc.avatar_url && acc.avatar_url.length > 4) || (acc.main_avatar_url && acc.main_avatar_url.length > 4)) {
+                uniqueMap[acc.id] = acc;
+            } else if (!(uniqueMap[acc.id].avatar_url && uniqueMap[acc.id].avatar_url.length > 4)) {
+                // Если в uniqueMap еще не было avatar_url — обновляем на последний
+                uniqueMap[acc.id] = acc;
+            }
+        }
+    });
+    let sortedAccounts = Object.values(uniqueMap);
     // Сортируем: текущий аккаунт — первый
-    let sortedAccounts = [...knownAccounts];
     if (window.currentUserId) {
         sortedAccounts.sort((a, b) => (b.id === window.currentUserId ? 1 : 0) - (a.id === window.currentUserId ? 1 : 0));
     }
 
+    // Фильтрация и подготовка аватарок по ролям
     sortedAccounts.forEach(account => {
         const isCurrentAccount = account.id === window.currentUserId;
-        // Обрезаем имя и почту до 8 символов
         let displayName = (account.username || '').substring(0, 8);
         let displayEmail = (account.email || '').substring(0, 8);
         let displayRole = account.role || 'user';
-        let avatarUrl = account.avatar_url || '/static/menu/img/avatar.png';
-        
+
+        // --- Логика аватарок ---
+        let avatarUrl = '/static/menu/img/avatar.png';
+        const isAdmin = window.userRole === 'admin' || window.userRole === 'superadmin';
+        if (isAdmin) {
+            // Админы и суперадмины видят аватарки всех аккаунтов
+            if (account.avatar_url && typeof account.avatar_url === 'string' && account.avatar_url.length > 4) {
+                avatarUrl = account.avatar_url;
+            }
+        } else {
+            // Обычные юзеры видят только свою аватарку и "зеленых"
+            if (isCurrentAccount || account.status === 'green') {
+                if (account.avatar_url && typeof account.avatar_url === 'string' && account.avatar_url.length > 4) {
+                    avatarUrl = account.avatar_url;
+                }
+            }
+        }
+
         const accountItem = document.createElement('div');
         accountItem.className = 'account-item' + (isCurrentAccount ? ' active-account' : '');
-        
+
         accountItem.innerHTML = `
           <div class="account-grid">
             <div class="avatar-cell">
@@ -702,8 +733,6 @@ function updateAccountsDropdown() {
     addLoginLink.textContent = 'Додати обліковий запис';
     dropdownContent.appendChild(addLoginLink);
 }
-
-
 
 // Переключення на інший обліковий запис
 function switchAccount(account) {
