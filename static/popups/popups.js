@@ -63,10 +63,29 @@ if (phoneAddBtn) { // Используем переименованную пер
 function showPhoneError(input) {
   const errorDiv = input.parentElement.querySelector('.phone-error, .field-error');
   if (!errorDiv) return; // Не падать, если нет блока ошибки
+
+  // Сбросить стили по умолчанию
+  errorDiv.style.display = '';
+  errorDiv.style.border = '';
+  errorDiv.style.background = '';
+  errorDiv.style.color = '';
+  errorDiv.style.padding = '';
+  errorDiv.style.marginTop = '';
+  errorDiv.style.borderRadius = '';
+  errorDiv.style.zIndex = '50000';
+
   if (input.validity.valueMissing) {
     errorDiv.textContent = 'Це поле обовʼязкове .. від двох символів 1-9 # * ( )';
   } else if (input.validity.patternMismatch) {
-    errorDiv.textContent = 'Заповніть правильно: тільки цифри, +, -, (, ), #, *, пробіли, від 2 до 31 символа';
+    errorDiv.textContent = 'Невірно введено номер. Дозволено від 2 до 31 цифр і символів: ( ) - # * +. Будь ласка, заповніть поле коректно.';
+    errorDiv.style.display = 'block';
+    errorDiv.style.border = '1px solid #d32f2f';
+    errorDiv.style.background = '#fff0f0';
+    errorDiv.style.color = '#d32f2f';
+    errorDiv.style.padding = '4px 8px';
+    errorDiv.style.marginTop = '4px';
+    errorDiv.style.borderRadius = '4px';
+    errorDiv.style.zIndex = '50000';
   } else if (input.validity.tooShort) {
     errorDiv.textContent = 'Мінімум 2 символи';
   } else if (input.validity.tooLong) {
@@ -76,6 +95,39 @@ function showPhoneError(input) {
   }
 }
 
+// Добавить novalidate ко всем формам
+window.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('form').forEach(form => form.setAttribute('novalidate', 'true'));
+});
+
+// Кастомная ошибка для обычных полей (имя, email и т.д.)
+function showCustomFieldError(input) {
+  const errorDiv = input.parentElement.querySelector('.field-error');
+  if (!errorDiv) return;
+  errorDiv.style.display = '';
+  errorDiv.style.color = '#d32f2f';
+  errorDiv.style.marginTop = '4px';
+  errorDiv.style.fontSize = '0.95em';
+  errorDiv.style.zIndex = '50000';
+  if (input.validity.valueMissing) {
+    errorDiv.textContent = 'Це поле обовʼязкове';
+  } else if (input.validity.typeMismatch && input.type === 'email') {
+    errorDiv.textContent = 'Введіть коректний email';
+  } else if (input.validity.tooShort) {
+    errorDiv.textContent = 'Мінімум ' + input.minLength + ' символів';
+  } else if (input.validity.tooLong) {
+    errorDiv.textContent = 'Максимум ' + input.maxLength + ' символів';
+  } else {
+    errorDiv.textContent = '';
+  }
+}
+
+// Очищать ошибку на ввод
+function clearCustomFieldError(input) {
+  const errorDiv = input.parentElement.querySelector('.field-error');
+  if (errorDiv) errorDiv.textContent = '';
+}
+
 // Валидация: показывать ошибку только на blur, а на input просто очищать
 // (чтобы не ругалось при каждом вводе)
 document.addEventListener('input', function(e) {
@@ -83,12 +135,65 @@ document.addEventListener('input', function(e) {
     const errorDiv = e.target.parentElement.querySelector('.phone-error, .field-error');
     if (errorDiv) errorDiv.textContent = '';
   }
+  if (e.target.matches('input[required], input[type="email"], textarea[required]')) {
+    clearCustomFieldError(e.target);
+  }
 });
 document.addEventListener('blur', function(e) {
   if (e.target.matches('input[type="tel"]')) {
     showPhoneError(e.target);
   }
+  if (e.target.matches('input[required], input[type="email"], textarea[required]')) {
+    showCustomFieldError(e.target);
+  }
 }, true);
+
+// На submit формы — ручная валидация
+window.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('form').forEach(form => {
+    form.addEventListener('submit', function(e) {
+      let valid = true;
+      // Проверяем все обязательные поля (кроме телефона — у него отдельная логика)
+      form.querySelectorAll('input[required]:not([type="tel"]), input[type="email"], textarea[required]').forEach(input => {
+        if (!input.checkValidity()) {
+          showCustomFieldError(input);
+          valid = false;
+        }
+      });
+      // Телефоны
+      form.querySelectorAll('input[type="tel"]').forEach(input => {
+        if (!input.checkValidity()) {
+          showPhoneError(input);
+          valid = false;
+        }
+      });
+      // Если есть ошибки — показать .popup-error
+      let popup = form.closest('.popup');
+      if (!popup) popup = document.body;
+      let errorDiv = popup.querySelector('.popup-error');
+      if (!valid) {
+        if (!errorDiv) {
+          errorDiv = document.createElement('div');
+          errorDiv.className = 'popup-error';
+          errorDiv.style.background = '#fff0f0';
+          errorDiv.style.color = '#d32f2f';
+          errorDiv.style.border = '1px solid #d32f2f';
+          errorDiv.style.padding = '8px 12px';
+          errorDiv.style.marginBottom = '12px';
+          errorDiv.style.borderRadius = '4px';
+          errorDiv.style.textAlign = 'center';
+          errorDiv.style.zIndex = '50000';
+          popup.prepend(errorDiv);
+        }
+        errorDiv.textContent = 'Будь ласка, виправте помилки у формі';
+        errorDiv.style.display = 'block';
+        e.preventDefault();
+      } else if (errorDiv) {
+        errorDiv.style.display = 'none';
+      }
+    });
+  });
+});
 
 function showCustomFieldError(input) {
   const errorDiv = input.parentElement.querySelector('.field-error');
@@ -285,15 +390,34 @@ if (contactForm) {
       });
       const data = await resp.json();
       if (!resp.ok) {
-        // Обробка помилок валідації
+        // Обработка ошибок валидации (422)
         if (data.detail) {
           if (Array.isArray(data.detail)) {
             data.detail.forEach(err => {
               const field = err.loc && err.loc.length ? err.loc[err.loc.length-1] : 'form';
-              showFieldError(field, err.msg);
+              // Найти input по имени
+              const input = contactForm.querySelector(`[name="${field}"]`);
+              if (input) {
+                // Найти или создать .field-error
+                let errorDiv = input.parentElement.querySelector('.field-error');
+                if (!errorDiv) {
+                  errorDiv = document.createElement('div');
+                  errorDiv.className = 'field-error';
+                  input.parentElement.appendChild(errorDiv);
+                }
+                errorDiv.textContent = err.msg;
+                errorDiv.style.display = 'block';
+                errorDiv.style.color = '#d32f2f';
+                errorDiv.style.marginTop = '4px';
+                errorDiv.style.fontSize = '0.95em';
+                errorDiv.style.zIndex = '50000';
+              } else {
+                // Общая ошибка — показать в попапе
+                showPopupError(contactForm, err.msg);
+              }
             });
           } else {
-            showFieldError('form', data.detail);
+            showPopupError(contactForm, data.detail);
           }
         }
       } else {
@@ -304,8 +428,30 @@ if (contactForm) {
         // Можна оновити список контактів
       }
     } catch (err) {
-      showFieldError('form', 'Помилка мережі, спробуйте ще раз.');
+      showPopupError(contactForm, 'Помилка мережі, спробуйте ще раз.');
     }
+
+// Функция для показа общей ошибки в попапе
+function showPopupError(form, msg) {
+  let popup = form.closest('.popup');
+  if (!popup) popup = document.body;
+  let errorDiv = popup.querySelector('.popup-error');
+  if (!errorDiv) {
+    errorDiv = document.createElement('div');
+    errorDiv.className = 'popup-error';
+    errorDiv.style.background = '#fff0f0';
+    errorDiv.style.color = '#d32f2f';
+    errorDiv.style.border = '1px solid #d32f2f';
+    errorDiv.style.padding = '8px 12px';
+    errorDiv.style.marginBottom = '12px';
+    errorDiv.style.borderRadius = '4px';
+    errorDiv.style.textAlign = 'center';
+    errorDiv.style.zIndex = '50000';
+    popup.prepend(errorDiv);
+  }
+  errorDiv.textContent = msg;
+}
+
   });
 }
 
