@@ -35,16 +35,26 @@ function closePopup(id) {
 const phonesListElement = document.getElementById('phones-list');
 const phoneAddBtn = document.getElementById('add-phone-btn'); // Переименовали переменную, чтобы избежать конфликта
 const phoneTypes = ['Мобільний', 'Домашній', 'Робочий', 'Інший'];
-function addPhoneRow(value = '', type = 'Мобільний') {
+function addPhoneRow(number = '', label = 'Мобільний') {
   if (!phonesListElement) return;
-  const idx = phonesListElement.children.length;
-  const row = document.createElement('div');
-  row.className = 'phone-row';
-  // Виправлений pattern для всіх браузерів
-  row.innerHTML = `<div class='phone-input-wrap form-field'><input class='phone-input' type='tel' pattern='[0-9()+#* -]{2,31}' minlength='2' maxlength='31' inputmode='tel' value='${value}' placeholder='номер телефону' required><div class='phone-error field-error' data-field='phone_${idx}'></div></div><select class='phone-type'>${phoneTypes.map(t => `<option${t===type?' selected':''}>${t}</option>`).join('')}</select><button type='button' class='remove-phone-btn' title='Видалити'>✕</button>`;
-  row.querySelector('.remove-phone-btn').onclick = () => row.remove();
-  phonesListElement.appendChild(row);
+  const div = document.createElement('div');
+  div.className = 'phone-number-row';
+  div.innerHTML = `
+    <div class="phone-input-wrap">
+      <input type="tel" required minlength="2" maxlength="32" placeholder="Номер телефону" value="${number}">
+      <select>
+        <option value="Мобільний"${label==='Мобільний'?' selected':''}>Мобільний</option>
+        <option value="Домашній"${label==='Домашній'?' selected':''}>Домашній</option>
+        <option value="Робочий"${label==='Робочий'?' selected':''}>Робочий</option>
+        <option value="Інший"${label==='Інший'?' selected':''}>Інший</option>
+      </select>
+      <button type="button" class="remove-phone-btn">✕</button>
+    </div>
+  `;
+  div.querySelector('.remove-phone-btn').onclick = () => div.remove();
+  phonesListElement.appendChild(div);
 }
+window.addPhoneRow = addPhoneRow;
 if (phoneAddBtn) { // Используем переименованную переменную
   phoneAddBtn.onclick = () => addPhoneRow();
 }
@@ -52,6 +62,7 @@ if (phoneAddBtn) { // Используем переименованную пер
 // Кастомна inline-валідація для телефону та інших полів
 function showPhoneError(input) {
   const errorDiv = input.parentElement.querySelector('.phone-error, .field-error');
+  if (!errorDiv) return; // Не падать, если нет блока ошибки
   if (input.validity.valueMissing) {
     errorDiv.textContent = 'Це поле обовʼязкове .. від двох символів 1-9 # * ( )';
   } else if (input.validity.patternMismatch) {
@@ -64,6 +75,20 @@ function showPhoneError(input) {
     errorDiv.textContent = '';
   }
 }
+
+// Валидация: показывать ошибку только на blur, а на input просто очищать
+// (чтобы не ругалось при каждом вводе)
+document.addEventListener('input', function(e) {
+  if (e.target.matches('input[type="tel"]')) {
+    const errorDiv = e.target.parentElement.querySelector('.phone-error, .field-error');
+    if (errorDiv) errorDiv.textContent = '';
+  }
+});
+document.addEventListener('blur', function(e) {
+  if (e.target.matches('input[type="tel"]')) {
+    showPhoneError(e.target);
+  }
+}, true);
 
 function showCustomFieldError(input) {
   const errorDiv = input.parentElement.querySelector('.field-error');
