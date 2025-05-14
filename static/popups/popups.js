@@ -60,39 +60,77 @@ if (phoneAddBtn) { // Используем переименованную пер
 }
 
 // Кастомна inline-валідація для телефону та інших полів
-function showPhoneError(input) {
-  const errorDiv = input.parentElement.querySelector('.phone-error, .field-error');
-  if (!errorDiv) return; // Не падать, если нет блока ошибки
+function showPhoneError(input, message) {
+    let errorDiv = input.parentElement.querySelector('.phone-error, .field-error');
+    if (!errorDiv) return;
+    let val = input.value.trim();
+    const digits = val.replace(/\D/g, '');
+    if(val.length > 0) {
+        if (!/^[- 0-9+()#*]{2,32}$/.test(val) || digits.length < 2) {
+            errorDiv.textContent = message || 'Мінімум 2 цифри, тільки цифри, + - ( ) # *';
+            errorDiv.classList.add('active');
+            input.classList.add('input-error');
+        } else {
+            errorDiv.textContent = '';
+            errorDiv.classList.remove('active');
+            input.classList.remove('input-error');
+        }
+    } else {
+        errorDiv.textContent = '';
+        errorDiv.classList.remove('active');
+        input.classList.remove('input-error');
+    }
+}
 
-  // Сбросить стили по умолчанию
-  errorDiv.style.display = '';
-  errorDiv.style.border = '';
-  errorDiv.style.background = '';
-  errorDiv.style.color = '';
-  errorDiv.style.padding = '';
-  errorDiv.style.marginTop = '';
-  errorDiv.style.borderRadius = '';
-  errorDiv.style.zIndex = '50000';
-
-  if (input.validity.valueMissing) {
-    errorDiv.textContent = 'Це поле обовʼязкове .. від двох символів 1-9 # * ( )';
-  } else if (input.validity.patternMismatch) {
-    errorDiv.textContent = 'Невірно введено номер. Дозволено від 2 до 31 цифр і символів: ( ) - # * +. Будь ласка, заповніть поле коректно.';
-    errorDiv.style.display = 'block';
-    errorDiv.style.border = '1px solid #d32f2f';
-    errorDiv.style.background = '#fff0f0';
-    errorDiv.style.color = '#d32f2f';
-    errorDiv.style.padding = '4px 8px';
-    errorDiv.style.marginTop = '4px';
-    errorDiv.style.borderRadius = '4px';
+function showCustomFieldError(input) {
+    let errorDiv = input.parentElement.querySelector('.field-error');
+    if (!errorDiv) {
+        errorDiv = document.createElement('div');
+        errorDiv.className = 'field-error';
+        input.parentElement.appendChild(errorDiv);
+    }
     errorDiv.style.zIndex = '50000';
-  } else if (input.validity.tooShort) {
-    errorDiv.textContent = 'Мінімум 2 символи';
-  } else if (input.validity.tooLong) {
-    errorDiv.textContent = 'Максимум 31 символ';
-  } else {
-    errorDiv.textContent = '';
-  }
+    let val = input.value.trim();
+    if(input.name === 'first_name') {
+        if (!val) {
+            errorDiv.textContent = 'Введіть ім’я (мінімум 2 символи, тільки букви, цифри і дефіс)';
+            errorDiv.classList.add('active');
+            input.classList.add('input-error');
+        } else if (!/^[-а-яіїєa-z0-9]+$/i.test(val) || val.length < 2) {
+            errorDiv.textContent = 'Мінімум 2 символи, тільки букви, цифри і дефіс';
+            errorDiv.classList.add('active');
+            input.classList.add('input-error');
+        } else {
+            errorDiv.textContent = '';
+            errorDiv.classList.remove('active');
+            input.classList.remove('input-error');
+        }
+        return;
+    }
+    if (input.validity.valueMissing) {
+        errorDiv.textContent = 'Це поле обовʼязкове';
+        errorDiv.classList.add('active');
+        input.classList.add('input-error');
+    } else {
+        errorDiv.textContent = '';
+        errorDiv.classList.remove('active');
+        input.classList.remove('input-error');
+    }
+}
+
+function clearCustomFieldError(input) {
+    let errorDiv = input.parentElement.querySelector('.field-error');
+    if (errorDiv) {
+        errorDiv.textContent = '';
+        errorDiv.classList.remove('active');
+    }
+    input.classList.remove('input-error');
+}
+
+function clearFieldError(field) {
+    const input = document.querySelector(`[name="${field}"]`);
+    if (!input) return;
+    clearCustomFieldError(input);
 }
 
 // Добавить novalidate ко всем формам
@@ -100,36 +138,67 @@ window.addEventListener('DOMContentLoaded', function() {
   document.querySelectorAll('form').forEach(form => form.setAttribute('novalidate', 'true'));
 });
 
-// Кастомная ошибка для обычных полей (имя, email и т.д.)
-function showCustomFieldError(input) {
-  const errorDiv = input.parentElement.querySelector('.field-error');
-  if (!errorDiv) return;
-  errorDiv.style.display = '';
-  errorDiv.style.color = '#d32f2f';
-  errorDiv.style.marginTop = '4px';
-  errorDiv.style.fontSize = '0.95em';
-  errorDiv.style.zIndex = '50000';
-  if (input.validity.valueMissing) {
-    errorDiv.textContent = 'Це поле обовʼязкове';
-  } else if (input.validity.typeMismatch && input.type === 'email') {
-    errorDiv.textContent = 'Введіть коректний email';
-  } else if (input.validity.tooShort) {
-    errorDiv.textContent = 'Мінімум ' + input.minLength + ' символів';
-  } else if (input.validity.tooLong) {
-    errorDiv.textContent = 'Максимум ' + input.maxLength + ' символів';
-  } else {
-    errorDiv.textContent = '';
-  }
+// Универсальная функция для показа кастомной ошибки над полем
+function showCustomFieldError(input, type = null) {
+    let errorDiv = input.parentElement.querySelector('.field-error');
+    if (!errorDiv) {
+        errorDiv = document.createElement('div');
+        errorDiv.className = 'field-error';
+        input.parentElement.appendChild(errorDiv);
+    }
+    errorDiv.style.zIndex = '50000';
+    let val = input.value.trim();
+    // always show for first_name, even if not required
+    if(input.name === 'first_name') {
+        if (!val) {
+            errorDiv.textContent = 'Введіть ім’я (мінімум 2 символи, тільки букви, цифри і дефіс)';
+            errorDiv.classList.add('active');
+            input.classList.add('input-error');
+        } else if (!/^[-а-яіїєa-z0-9]+$/i.test(val) || val.length < 2) {
+            errorDiv.textContent = 'Мінімум 2 символи, тільки букви, цифри і дефіс';
+            errorDiv.classList.add('active');
+            input.classList.add('input-error');
+        } else {
+            errorDiv.textContent = '';
+            errorDiv.classList.remove('active');
+            input.classList.remove('input-error');
+        }
+        return;
+    }
+    // Для других полей
+    if (input.validity.valueMissing) {
+        errorDiv.textContent = 'Це поле обовʼязкове';
+        errorDiv.classList.add('active');
+        input.classList.add('input-error');
+    } else {
+        errorDiv.textContent = '';
+        errorDiv.classList.remove('active');
+        input.classList.remove('input-error');
+    }
 }
 
+
 // Очищать ошибку на ввод
-function clearCustomFieldError(input) {
-  const errorDiv = input.parentElement.querySelector('.field-error');
-  if (errorDiv) errorDiv.textContent = '';
-}
+
 
 // Валидация: показывать ошибку только на blur, а на input просто очищать
 // (чтобы не ругалось при каждом вводе)
+document.addEventListener('input', function(e) {
+  if (e.target.matches('input,textarea')) {
+    clearCustomFieldError(e.target);
+  }
+});
+document.addEventListener('blur', function(e) {
+  if (e.target.matches('input,textarea')) {
+    if (!e.target.checkValidity()) {
+      showCustomFieldError(e.target);
+    }
+  }
+}, true);
+
+// Для телефона — ограничение ввода только разрешёнными символами
+// и кастомная ошибка
+// (оставляем для совместимости)
 document.addEventListener('input', function(e) {
   if (e.target.matches('input[type="tel"]')) {
     const errorDiv = e.target.parentElement.querySelector('.phone-error, .field-error');
@@ -151,67 +220,67 @@ document.addEventListener('blur', function(e) {
 // На submit формы — ручная валидация
 window.addEventListener('DOMContentLoaded', function() {
   document.querySelectorAll('form').forEach(form => {
-    form.addEventListener('submit', function(e) {
+    form.addEventListener('submit', async function(e) {
+      e.preventDefault();
       let valid = true;
-      // Проверяем все обязательные поля (кроме телефона — у него отдельная логика)
-      form.querySelectorAll('input[required]:not([type="tel"]), input[type="email"], textarea[required]').forEach(input => {
-        if (!input.checkValidity()) {
-          showCustomFieldError(input);
-          valid = false;
-        }
-      });
-      // Телефоны
+      // Проверяем имя
+      const firstName = form.querySelector('[name="first_name"]');
+      showCustomFieldError(firstName);
+      if (firstName.classList.contains('input-error')) valid = false;
+      // Проверяем телефоны
       form.querySelectorAll('input[type="tel"]').forEach(input => {
-        if (!input.checkValidity()) {
-          showPhoneError(input);
-          valid = false;
+        showPhoneError(input);
+        if (input.classList.contains('input-error')) valid = false;
+      });
+      // Проверяем остальные обязательные
+      form.querySelectorAll('input[required]:not([type="tel"]), input[type="email"], textarea[required]').forEach(input => {
+        if (input.name !== 'first_name') {
+          if (input.validity.valueMissing) {
+            showCustomFieldError(input);
+            valid = false;
+          }
         }
       });
-      // Если есть ошибки — показать .popup-error
-      let popup = form.closest('.popup');
-      if (!popup) popup = document.body;
-      let errorDiv = popup.querySelector('.popup-error');
-      if (!valid) {
-        if (!errorDiv) {
-          errorDiv = document.createElement('div');
-          errorDiv.className = 'popup-error';
-          errorDiv.style.background = '#fff0f0';
-          errorDiv.style.color = '#d32f2f';
-          errorDiv.style.border = '1px solid #d32f2f';
-          errorDiv.style.padding = '8px 12px';
-          errorDiv.style.marginBottom = '12px';
-          errorDiv.style.borderRadius = '4px';
-          errorDiv.style.textAlign = 'center';
-          errorDiv.style.zIndex = '50000';
-          popup.prepend(errorDiv);
+      if (!valid) return;
+      // Отправляем форму
+      let data = {};
+      form.querySelectorAll('input,textarea,select').forEach(el => {
+        data[el.name] = el.value;
+      });
+      try {
+        let fetchOptions = { method: form.method || 'POST' };
+        if (fetchOptions.method.toUpperCase() === 'POST' || fetchOptions.method.toUpperCase() === 'PUT' || fetchOptions.method.toUpperCase() === 'PATCH') {
+          fetchOptions.headers = { 'Content-Type': 'application/json' };
+          fetchOptions.body = JSON.stringify(data);
         }
-        errorDiv.textContent = 'Будь ласка, виправте помилки у формі';
-        errorDiv.style.display = 'block';
-        e.preventDefault();
-      } else if (errorDiv) {
-        errorDiv.style.display = 'none';
+        const resp = await fetch(form.action || window.location.pathname, fetchOptions);
+        if (resp.status === 422) {
+          const res = await resp.json();
+          if (res.errors) {
+            Object.entries(res.errors).forEach(([field, msg]) => {
+              showFieldError(field, msg);
+            });
+          } else if (res.detail) {
+            showPopupError(form, res.detail);
+          } else {
+            showPopupError(form, 'Помилка валідації');
+          }
+          return;
+        }
+        if (!resp.ok) {
+          const res = await resp.json().catch(() => ({}));
+          showPopupError(form, res.detail || 'Помилка');
+          return;
+        }
+        // success, закрываем попап
+        closePopup(form.closest('.popup').id);
+      } catch (err) {
+        showPopupError(form, err.message || 'Помилка');
       }
     });
   });
 });
 
-function showCustomFieldError(input) {
-  const errorDiv = input.parentElement.querySelector('.field-error');
-  if (!errorDiv) return;
-  if (input.name === 'first_name' || input.name === 'last_name') {
-    if (input.validity.tooLong) {
-      errorDiv.textContent = 'Це поле максимум 198 символів';
-    } else {
-      errorDiv.textContent = '';
-    }
-  } else if (input.name === 'extra_info') {
-    if (input.validity.tooLong) {
-      errorDiv.textContent = 'Це поле максимум 500 символів';
-    } else {
-      errorDiv.textContent = '';
-    }
-  }
-}
 
 document.addEventListener('input', function(e) {
   if (e.target.matches('input[type="tel"]')) {
@@ -306,7 +375,7 @@ function showFieldError(field, message) {
     errorDiv.classList.add('active');
     // Підсвітити поле
     const input = document.querySelector('[name="' + field + '"]');
-    if (input) input.classList.add('invalid-field');
+    if (input) input.classList.add('input-error');
   }
 }
 function clearFieldError(field) {
@@ -335,6 +404,57 @@ if (contactForm) {
   contactForm.addEventListener('submit', async function(e) {
     e.preventDefault();
     clearAllFieldErrors();
+    // Ручная валидация всех обязательных полей
+    let firstInvalid = null;
+    // first_name
+    const firstNameInput = contactForm.querySelector('[name="first_name"]');
+    showCustomFieldError(firstNameInput);
+    const firstNameError = firstNameInput.parentElement.querySelector('.field-error.active');
+    if (firstNameError && firstNameError.textContent) {
+      firstInvalid = firstNameInput;
+    }
+    // email
+    const emailInput = contactForm.querySelector('[name="email"]');
+    if (emailInput) {
+      const val = emailInput.value.trim();
+      // Строгая проверка: имя@домен.доменная_зона (зона >=2 буквы)
+      const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+      if (!val || !emailPattern.test(val)) {
+        showFieldError('email', 'Введіть коректний email (наприклад: name@email.com)');
+        if (!firstInvalid) firstInvalid = emailInput;
+      }
+    }
+    // birthday
+    const birthdayInput = contactForm.querySelector('[name="birthday"]');
+    if (birthdayInput) {
+      if (!birthdayInput.value.trim()) {
+        showFieldError('birthday', 'Виберіть дату народження');
+        if (!firstInvalid) firstInvalid = birthdayInput;
+      }
+    }
+    // phones
+    const phoneInputs = contactForm.querySelectorAll('input[type="tel"]');
+    phoneInputs.forEach(phoneInput => {
+      let val = phoneInput.value.trim();
+      // Проверка: только разрешённые символы и минимум 2 цифры
+      const digits = val.replace(/\D/g, '');
+      if (val.length > 0) {
+        if (!/^[- 0-9+()#*]{2,32}$/.test(val) || digits.length < 2) {
+          showPhoneError(phoneInput, digits.length < 2 ? 'Мінімум 2 цифри, тільки цифри, + - ( ) # *' : undefined);
+          if (!firstInvalid) firstInvalid = phoneInput;
+        } else {
+          // если всё ок, убрать ошибку
+          showPhoneError(phoneInput, '');
+        }
+      } else {
+        // если пустое, убрать ошибку
+        showPhoneError(phoneInput, '');
+      }
+    });
+    if (firstInvalid) {
+      firstInvalid.focus();
+      return;
+    }
     // HTML5 валідація
     if (!contactForm.checkValidity()) {
       Array.from(contactForm.elements).forEach(el => {
@@ -348,15 +468,46 @@ if (contactForm) {
     }
     const formData = new FormData(contactForm);
     // Збираємо телефони
-    const phones = Array.from(document.querySelectorAll('.phone-row .phone-input')).map(input => ({number: input.value, type: input.closest('.phone-row').querySelector('.phone-type').value}));
-    formData.delete('phones');
-    // Збираємо групи
-    const groups = document.querySelector('[name="groups"]').value;
+    let phoneInputsList = document.querySelectorAll('#phones-list input[type="tel"]');
+    let phones = Array.from(phoneInputsList)
+        .map(input => input.value.trim())
+        .filter(val => val.length > 0);
     // Формуємо payload
     const payload = Object.fromEntries(formData.entries());
     payload.phone_numbers = phones;
+    // Збираємо групи
+    const groups = document.querySelector('[name="groups"]').value;
     payload.groups = groups;
     
+    // Валидация поля extra_info
+    const extraInfoInput = contactForm.querySelector('[name="extra_info"]');
+    if (extraInfoInput && extraInfoInput.value.trim().length > 0) {
+      const val = extraInfoInput.value.trim();
+      // Проверка длины
+      if (val.length > 500) {
+        showFieldError('extra_info', 'Не більше 500 символів');
+        if (!firstInvalid) firstInvalid = extraInfoInput;
+      }
+      // Проверка допустимых символов
+      if (!/^[-#()а-яА-ЯёЁa-zA-Z0-9 .,!?"'\n]*$/.test(val)) {
+        showFieldError('extra_info', 'Дозволені символи: # - ( ) та літери/цифри');
+        if (!firstInvalid) firstInvalid = extraInfoInput;
+      }
+    }
+
+    // Универсальная фильтрация опасных символов для всех текстовых полей
+    function sanitizeInput(str) {
+      // Удаляем потенциально опасные символы: < > " ' ; --
+      return str.replace(/[<>"';]/g, '').replace(/--/g, '');
+    }
+    // Применяем фильтрацию к основным полям
+    [firstNameInput, emailInput, birthdayInput, extraInfoInput].forEach(input => {
+      if (input && input.value) input.value = sanitizeInput(input.value);
+    });
+    phoneInputs.forEach(input => {
+      if (input && input.value) input.value = sanitizeInput(input.value);
+    });
+
     // Додаємо user_id та перевіряємо роль користувача
     const user = getUserInfo();
     if (!user) {
@@ -369,6 +520,59 @@ if (contactForm) {
         showFieldError('form', 'Сессия не содержит user_id');
         return;
     }
+
+    // --- Обработка ошибок сервера при отправке формы ---
+    try {
+      // let response = await fetch(...)
+      // if (!response.ok) throw response;
+      // let data = await response.json();
+      // ...
+    } catch (err) {
+      if (err.status === 422) {
+        err.json().then(data => {
+          let fieldErrorShown = false;
+          Object.entries(data).forEach(([field, errors]) => {
+            const input = contactForm.querySelector(`[name="${field}"]`);
+            if (input) {
+              if (field === 'phone_numbers' || input.type === 'tel') showPhoneError(input, errors.join(' '));
+              else showFieldError(field, errors.join(' '));
+              if (!fieldErrorShown) {
+                input.focus();
+                fieldErrorShown = true;
+              }
+            }
+          });
+          if (!fieldErrorShown) {
+            alert('Заповніть поля вірно');
+          }
+        });
+        return;
+      } else {
+        alert('Заповніть поля вірно');
+      }
+    }
+    // --- конец блока ---
+
+    // --- Обработка ошибок сервера при отправке формы ---
+    // Эта часть должна быть в месте, где отправляется fetch/axios запрос
+    // Например, в async submit handler:
+    // try { ... } catch (err) {
+    //   if (err.response && err.response.status === 422) {
+    //     // err.response.data = {field: ["ошибка"]}
+    //     Object.entries(err.response.data).forEach(([field, errors]) => {
+    //       const input = contactForm.querySelector(`[name="${field}"]`);
+    //       if (input) {
+    //         showFieldError(field, errors.join(' '));
+    //         input.focus();
+    //       }
+    //     });
+    //     return;
+    //   } else {
+    //     // alert('Глобальная ошибка: ' + err.message);
+    //   }
+    // }
+    // --- конец блока ---
+
     
     // Для супер-адміна та адміна дозволяємо явно задавати user_id
     if (user.role === 'superadmin' || user.role === 'admin') {
@@ -430,33 +634,47 @@ if (contactForm) {
     } catch (err) {
       showPopupError(contactForm, 'Помилка мережі, спробуйте ще раз.');
     }
+  });}
 
 // Функция для показа общей ошибки в попапе
 function showPopupError(form, msg) {
-  let popup = form.closest('.popup');
-  if (!popup) popup = document.body;
-  let errorDiv = popup.querySelector('.popup-error');
-  if (!errorDiv) {
-    errorDiv = document.createElement('div');
-    errorDiv.className = 'popup-error';
-    errorDiv.style.background = '#fff0f0';
-    errorDiv.style.color = '#d32f2f';
-    errorDiv.style.border = '1px solid #d32f2f';
-    errorDiv.style.padding = '8px 12px';
-    errorDiv.style.marginBottom = '12px';
-    errorDiv.style.borderRadius = '4px';
-    errorDiv.style.textAlign = 'center';
-    errorDiv.style.zIndex = '50000';
-    popup.prepend(errorDiv);
-  }
-  errorDiv.textContent = msg;
-}
-
-  });
+    // Стараться вставлять popup-error под submit или actions
+    let actions = form.querySelector('.popup-actions');
+    let errorDiv = form.querySelector('.popup-error');
+    if (!errorDiv) {
+        errorDiv = document.createElement('div');
+        errorDiv.className = 'popup-error';
+        errorDiv.style.background = '#fff0f0';
+        errorDiv.style.color = '#d32f2f';
+        errorDiv.style.border = '1px solid #d32f2f';
+        errorDiv.style.padding = '8px 12px';
+        errorDiv.style.marginTop = '12px';
+        errorDiv.style.marginBottom = '0';
+        errorDiv.style.borderRadius = '4px';
+        errorDiv.style.textAlign = 'center';
+        errorDiv.style.zIndex = '50000';
+        errorDiv.style.position = 'static';
+        if (actions && actions.parentNode) {
+            actions.parentNode.insertBefore(errorDiv, actions.nextSibling);
+        } else {
+            form.prepend(errorDiv);
+        }
+    }
+    errorDiv.textContent = msg;
+    errorDiv.style.display = 'block';
+    if (errorDiv._timeout) clearTimeout(errorDiv._timeout);
+    errorDiv._timeout = setTimeout(() => {
+        errorDiv.style.display = 'none';
+    }, 3000);
+    // Скрывать при любом вводе
+    const hide = () => { errorDiv.style.display = 'none'; };
+    form.querySelectorAll('input,textarea,select').forEach(el => {
+        el.addEventListener('input', hide, { once: true });
+        el.addEventListener('focus', hide, { once: true });
+    });
 }
 
 window.openPopup = openPopup;
 window.closePopup = closePopup;
 window.addPhoneRow = addPhoneRow;
-window.addGroupLabel = addGroupLabel;
 window.updateGroupsInput = updateGroupsInput;
