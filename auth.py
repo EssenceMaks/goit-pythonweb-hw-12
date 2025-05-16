@@ -4,8 +4,9 @@ from jose import JWTError, jwt
 from typing import Optional
 from datetime import datetime, timedelta
 from database import SessionLocal
-from crud import get_user_by_username
+from crud import get_user_by_username, get_user_by_email
 import os
+import uuid
 from dotenv import load_dotenv
 from passlib.context import CryptContext
 
@@ -17,15 +18,16 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 # Конфигурация JWT
 SECRET_KEY = os.getenv("SECRET_KEY", "default_secret_key")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = 15  # Уменьшаем время жизни access_token
+REFRESH_TOKEN_EXPIRE_DAYS = 30    # Время жизни refresh_token в днях
 
 # Схема OAuth2 для получения токена из заголовка Authorization
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/token", auto_error=False)  # Changed to auto_error=False
 
 # Модель данных пользователя для JWT
 class TokenData:
-    def __init__(self, username: Optional[str] = None, user_id: Optional[int] = None):
-        self.username = username
+    def __init__(self, email: Optional[str] = None, user_id: Optional[int] = None):
+        self.email = email
         self.user_id = user_id
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None):
@@ -37,6 +39,14 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
+
+def create_refresh_token(user_id: int):
+    """Создает refresh_token для пользователя"""
+    expires = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    refresh_token = str(uuid.uuid4())
+    
+    # Данные для сохранения в Redis будут добавлены в redis_client.py
+    return refresh_token, expires
 
 # Вспомогательная функция для получения токена из разных источников
 async def get_token_from_request(
@@ -51,7 +61,7 @@ async def get_token_from_request(
     
     # Затем проверяем токен из Cookie
     if access_token:
-        # Обрабатываем токен с префиксом Bearer или без него
+        # Токен должен быть без префикса Bearer
         token_value = access_token
         if token_value.startswith("Bearer "):
             token_value = token_value[7:]  # Убираем префикс "Bearer "
@@ -77,6 +87,18 @@ async def get_token_from_request(
     print("Токен не найден")
     return None
 
+async def get_refresh_token_from_request(request: Request, refresh_token: Optional[str] = Cookie(None)):
+    """Получает refresh_token из запроса"""
+    if refresh_token:
+        return refresh_token
+    
+    # Проверяем куки напрямую из запроса
+    cookies = request.cookies
+    if 'refresh_token' in cookies:
+        return cookies['refresh_token']
+    
+    return None
+
 async def get_current_user(request: Request, token: Optional[str] = Depends(get_token_from_request)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -89,54 +111,38 @@ async def get_current_user(request: Request, token: Optional[str] = Depends(get_
         print("Ошибка авторизации: Токен отсутствует")
         raise credentials_exception
     
-    # Особая обработка для суперадмина из сессии (запасной вариант)
-    if request and hasattr(request, "session"):
-        user_session = request.session.get("user", {})
-        if user_session.get("role") == "superadmin":
-            # Здесь мы проверяем, есть ли суперадмин в сессии
-            print("Обнаружен суперадмин в сессии, создание временного пользователя")
-            # Создаем временного пользователя с правами суперадмина
-            from models import User
-            temp_user = User(
-                id=user_session.get("id", -1),
-                username=user_session.get("username", "superadmin"),
-                email=user_session.get("username", "superadmin"),
-                role="superadmin"
-            )
-            return temp_user
-    
     try:
         print(f"Попытка декодирования токена: {token[:10]}...")
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         print(f"Токен декодирован успешно. Содержимое: {payload}")
-        username: str = payload.get("sub")
+        email: str = payload.get("email")
         user_id: int = payload.get("id")
         user_role: str = payload.get("role")
-        print(f"Извлеченные данные: username={username}, id={user_id}, role={user_role}")
+        print(f"Извлеченные данные: email={email}, id={user_id}, role={user_role}")
         
-        if username is None:
-            print("Ошибка: отсутствует поле 'sub' в токене")
+        if email is None:
+            print("Ошибка: отсутствует поле 'email' в токене")
             raise credentials_exception
             
-        token_data = TokenData(username=username, user_id=user_id)
+        token_data = TokenData(email=email, user_id=user_id)
     except JWTError as e:
         print(f"Ошибка при декодировании JWT: {e}")
         raise credentials_exception
     
     db = SessionLocal()
     try:
-        user = get_user_by_username(db, username=token_data.username)
+        user = get_user_by_email(db, email=token_data.email)
         if user is None:
-            print(f"Пользователь с username={token_data.username} не найден в БД")
+            print(f"Пользователь с email={token_data.email} не найден в БД")
             
             # Особый случай для суперадмина
-            if "superadmin" in token_data.username:
+            if "superadmin" in token_data.email:
                 print("Создание объекта пользователя для суперадмина")
                 from models import User
                 return User(
                     id=user_id or -1,
-                    username=username,
-                    email=username,
+                    username="superadmin",
+                    email=email,
                     role="superadmin"
                 )
             

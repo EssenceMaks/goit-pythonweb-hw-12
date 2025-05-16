@@ -18,9 +18,10 @@ from pydantic import EmailStr
 import psycopg2
 import re
 
-# Добавляем импорт роутера users
+# Добавляем импорт роутеров
 from routers import contacts, groups, db_utils, email_verification, users
 from routers.users_sessions import router as sessions_router
+from routers.auth import router as auth_router
 from database import SessionLocal, engine, Base, is_render_environment, is_docker_environment
 from crud import get_user_by_username, update_user_role, get_user_by_id
 import models
@@ -110,6 +111,7 @@ app.include_router(db_utils.router)
 app.include_router(users.router)
 app.include_router(email_verification.router)
 app.include_router(sessions_router)
+app.include_router(auth_router)
 
 # Настройка CORS
 app.add_middleware(
@@ -248,8 +250,13 @@ def clean_username_for_url(username: str) -> str:
 
 # Функция для получения токена из cookie
 async def get_token_from_cookie(access_token: Optional[str] = Cookie(None)):
-    if access_token and access_token.startswith("Bearer "):
-        return access_token[7:]  # Убираем "Bearer " префикс
+    # Проверяем наличие токена
+    if access_token:
+        # Если токен начинается с "Bearer ", убираем этот префикс
+        if access_token.startswith("Bearer "):
+            return access_token[7:]
+        # Иначе возвращаем токен как есть
+        return access_token
     return None
 
 # Обновление редиректов для использования относительных URL
@@ -346,13 +353,14 @@ async def login_post(request: Request, username: str = Form(...), password: str 
             clean_username = clean_username_for_url(username)
             response = RedirectResponse(url=f"/{clean_username}_superadmin/", status_code=303)
             
-            # Устанавливаем cookie с токеном для суперадмина
+            # Устанавливаем cookie с токеном для суперадмина (без префикса Bearer)
             response.set_cookie(
                 key="access_token",
-                value=f"Bearer {access_token}",
+                value=access_token,
                 httponly=True,
                 max_age=1800,  # 30 минут в секундах
-                path="/"  # Важно - токен будет доступен для всех путей
+                path="/",  # Важно - токен будет доступен для всех путей
+                samesite="lax"
             )
             
             return response
@@ -385,13 +393,14 @@ async def login_post(request: Request, username: str = Form(...), password: str 
             clean_username = clean_username_for_url(user.username)
             response = RedirectResponse(url=f"/{clean_username}_{user.role or 'user'}/", status_code=303)
             
-            # Устанавливаем cookie с токеном (исправлено)
+            # Устанавливаем cookie с токеном (без префикса Bearer)
             response.set_cookie(
                 key="access_token",
-                value=f"Bearer {access_token}",
+                value=access_token,
                 httponly=True,
                 max_age=1800,  # 30 минут в секундах
-                path="/"  # Важно - токен будет доступен для всех путей
+                path="/",  # Важно - токен будет доступен для всех путей
+                samesite="lax"
             )
             
             return response

@@ -145,16 +145,20 @@ async function checkDBState() {
 
 // Получение токена для авторизованных запросов
 function getAuthHeader() {
-  const tokenMatch = document.cookie.match(/access_token=([^;]*)/);
+  const tokenMatch = document.cookie.match(/access_token=([^;]*)/); 
   if (!tokenMatch) return {};
   
-  // Токен может быть уже с префиксом "Bearer " или без него
+  // Токен теперь всегда без префикса "Bearer "
   const tokenValue = tokenMatch[1];
-  if (tokenValue.startsWith('Bearer ')) {
-    return {'Authorization': tokenValue};
-  } else {
-    return {'Authorization': `Bearer ${tokenValue}`};
-  }
+  // Добавляем префикс "Bearer " для заголовка Authorization
+  return {'Authorization': `Bearer ${tokenValue}`};
+}
+
+// Получение refresh токена
+function getRefreshToken() {
+  const tokenMatch = document.cookie.match(/refresh_token=([^;]*)/); 
+  if (!tokenMatch) return null;
+  return tokenMatch[1];
 }
 
 // Обновленная функция для выполнения авторизованных запросов
@@ -170,15 +174,88 @@ async function authorizedRequest(url, options = {}) {
       credentials: 'include' // Включаем cookies
     });
     
+    // Проверка на истекший токен
+    if (response.status === 401) {
+      // Пробуем обновить токен
+      const refreshed = await refreshAccessToken();
+      if (refreshed) {
+        // Повторяем запрос с новым токеном
+        const newResponse = await fetch(url, {
+          ...options,
+          headers: {
+            ...getAuthHeader(), // Получаем новый токен
+            'Content-Type': 'application/json',
+            ...options.headers
+          },
+          credentials: 'include'
+        });
+        
+        if (!newResponse.ok) {
+          console.error(`Ошибка повторного запроса ${url}:`, newResponse.statusText);
+          return null;
+        }
+        
+        return await newResponse.json();
+      }
+    }
+    
     if (!response.ok) {
       console.error(`Ошибка запроса ${url}:`, response.statusText);
       return null;
     }
     
     return await response.json();
-  } catch (error) {
-    console.error(`Ошибка при запросе ${url}:`, error);
+  } catch (e) {
+    console.error(`Ошибка при выполнении запроса ${url}:`, e);
     return null;
+  }
+}
+
+// Функция для обновления access_token с помощью refresh_token
+async function refreshAccessToken() {
+  try {
+    const refreshToken = getRefreshToken();
+    if (!refreshToken) {
+      console.error('Нет refresh_token для обновления');
+      return false;
+    }
+    
+    const response = await fetch('/auth/refresh', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      credentials: 'include' // Включаем cookies
+    });
+    
+    if (!response.ok) {
+      console.error('Ошибка обновления токена:', response.statusText);
+      return false;
+    }
+    
+    const data = await response.json();
+    return true;
+  } catch (e) {
+    console.error('Ошибка при обновлении токена:', e);
+    return false;
+  }
+}
+
+// Функция для проверки статуса аккаунта
+async function checkAccountStatus(userId) {
+  try {
+    const response = await fetch(`/auth/status?user_id=${userId}`, {
+      credentials: 'include'
+    });
+    
+    if (!response.ok) {
+      return { status: 'error', message: 'Ошибка при проверке статуса' };
+    }
+    
+    return await response.json();
+  } catch (e) {
+    console.error('Ошибка при проверке статуса аккаунта:', e);
+    return { status: 'error', message: e.message };
   }
 }
 
@@ -510,7 +587,206 @@ function showConfirmPopup(message, onYes) {
 // Функції для управління кількома обліковими записами
 let knownAccounts = [];
 
-// --- Обновление статусов аккаунтов через /accounts/status ---
+// --- Обновление статусов аккаунтов через /auth/accounts/status ---
+async function updateAccountStatuses() {
+  // Получаем список ID аккаунтов
+  const accountIds = knownAccounts.map(account => account.id);
+  if (!accountIds.length) return;
+  
+  try {
+    // Запрашиваем статусы через новый эндпоинт
+    const response = await fetch(`/auth/accounts/status?user_ids=${accountIds.join(',')}`, {
+      method: 'GET',
+      headers: {
+        ...getAuthHeader()
+      },
+      credentials: 'include'
+    });
+    
+    if (!response.ok) {
+      console.error('Ошибка при получении статусов аккаунтов:', response.statusText);
+      return;
+    }
+    
+    const data = await response.json();
+    
+    // Обновляем статусы в списке аккаунтов
+    knownAccounts.forEach(account => {
+      if (data[account.id]) {
+        // Преобразуем статус API в статус для отображения
+        const apiStatus = data[account.id].status;
+        if (apiStatus === 'active') {
+          account.status = 'active'; // Зеленый - активный (есть refresh_token)
+        } else if (apiStatus === 'inactive') {
+          account.status = 'inactive'; // Желтый - неактивный (есть access_token, нет refresh_token)
+        } else {
+          account.status = 'expired'; // Серый - истекший (нет токенов)
+        }
+      }
+    });
+    
+    // Обновляем отображение
+    updateAccountsDropdown();
+  } catch (error) {
+    console.error('Ошибка при обновлении статусов аккаунтов:', error);
+  }
+}
+
+// Оновлення випадаючого меню з обліковими записами
+function updateAccountsDropdown() {
+  const accountsMenu = document.getElementById('accounts-dropdown');
+  if (!accountsMenu) return;
+  
+  // Очищаем меню
+  accountsMenu.innerHTML = '';
+  
+  // Получаем текущего пользователя
+  const currentUser = getCurrentUser();
+  
+  // Добавляем аккаунты
+  knownAccounts.forEach(account => {
+    const item = document.createElement('div');
+    item.className = 'dropdown-item';
+    item.dataset.userId = account.id;
+    
+    // Добавляем иконку статуса с цветом в зависимости от статуса
+    const statusIcon = document.createElement('span');
+    let statusClass = 'unknown';
+    
+    // Определяем класс для статуса (цвет точки)
+    if (account.status === 'active') {
+      statusClass = 'active'; // Зеленый - активный (есть refresh_token)
+    } else if (account.status === 'inactive') {
+      statusClass = 'inactive'; // Желтый - неактивный (есть access_token, нет refresh_token)
+    } else if (account.status === 'expired') {
+      statusClass = 'expired'; // Серый - истекший (нет токенов)
+    }
+    
+    statusIcon.className = `status-icon ${statusClass}`;
+    item.appendChild(statusIcon);
+    
+    // Добавляем имя пользователя
+    const nameSpan = document.createElement('span');
+    nameSpan.textContent = account.username;
+    nameSpan.className = 'account-name';
+    item.appendChild(nameSpan);
+    
+    // Добавляем галочку для текущего аккаунта
+    if (currentUser && currentUser.id === account.id) {
+      const checkmark = document.createElement('span');
+      checkmark.className = 'checkmark';
+      checkmark.innerHTML = '&#10003;';
+      item.appendChild(checkmark);
+      item.classList.add('current');
+    }
+    
+    // Добавляем обработчик клика с учетом статуса
+    item.addEventListener('click', () => {
+      if (account.status === 'active' || account.status === 'inactive') {
+        // Для активных и неактивных аккаунтов используем прямое переключение
+        switchAccount(account);
+      } else {
+        // Для истекших аккаунтов перенаправляем на страницу входа
+        window.location.href = `/login?email=${encodeURIComponent(account.email)}`;
+      }
+    });
+    
+    accountsMenu.appendChild(item);
+  });
+  
+  // Добавляем разделитель и пункт "Выйти"
+  if (knownAccounts.length > 0) {
+    const divider = document.createElement('div');
+    divider.className = 'dropdown-divider';
+    accountsMenu.appendChild(divider);
+  }
+  
+  const logoutItem = document.createElement('div');
+  logoutItem.className = 'dropdown-item logout';
+  logoutItem.textContent = 'Выйти';
+  logoutItem.addEventListener('click', () => {
+    // Используем новый эндпоинт для выхода
+    fetch('/auth/logout', {
+      method: 'POST',
+      credentials: 'include'
+    }).then(() => {
+      window.location.href = '/login';
+    });
+  });
+  accountsMenu.appendChild(logoutItem);
+  
+  // Добавляем стили для точек статуса, если их еще нет
+  addStatusStyles();
+}
+
+// Добавление стилей для точек статуса
+function addStatusStyles() {
+  // Проверяем, есть ли уже стили
+  if (document.getElementById('account-status-styles')) return;
+  
+  const styleEl = document.createElement('style');
+  styleEl.id = 'account-status-styles';
+  styleEl.textContent = `
+    .status-icon {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-right: 8px;
+    }
+    .status-icon.active {
+      background-color: #4CAF50; /* Зеленый */
+    }
+    .status-icon.inactive {
+      background-color: #FFC107; /* Желтый */
+    }
+    .status-icon.expired {
+      background-color: #9E9E9E; /* Серый */
+    }
+    .status-icon.unknown {
+      background-color: #E0E0E0; /* Светло-серый */
+    }
+  `;
+  
+  document.head.appendChild(styleEl);
+}
+
+// Переключення на інший обліковий запис
+async function switchAccount(account) {
+  try {
+    // Используем новый эндпоинт для переключения аккаунтов
+    const response = await fetch(`/auth/switch/${account.id}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      credentials: 'include'
+    });
+    
+    if (!response.ok) {
+      console.error('Ошибка при переключении аккаунта:', response.statusText);
+      // Если аккаунт истек, перенаправляем на страницу входа
+      if (response.status === 401) {
+        window.location.href = `/login?email=${encodeURIComponent(account.email)}`;
+        return;
+      }
+      return;
+    }
+    
+    const data = await response.json();
+    
+    // Перезагружаем страницу или перенаправляем на дашборд
+    const username = data.username || account.username;
+    const role = data.role || 'user';
+    window.location.href = `/${username}_${role}/`;
+  } catch (error) {
+    console.error('Ошибка при переключении аккаунта:', error);
+    // В случае ошибки перенаправляем на старый эндпоинт для совместимости
+    window.location.href = `/switch/${account.id}`;
+  }
+}
+
+// === Обновление статусов аккаунтов ===
 async function updateAccountStatuses() {
     if (!knownAccounts.length) return;
     try {
@@ -541,8 +817,7 @@ async function updateAccountStatuses() {
     }
 }
 
-
-// Инициализация при загрузке страницы
+// === Инициализация при загрузке страницы ===
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', function() {
         loadKnownAccounts();
@@ -599,7 +874,7 @@ document.addEventListener('DOMContentLoaded', function() {
     updateAccountsDropdown();
 });
 
-// Завантаження відомих облікових записів з localStorage
+// === Завантаження відомих облікових записів з localStorage ===
 function loadKnownAccounts() {
     const savedAccounts = localStorage.getItem('knownAccounts');
     if (savedAccounts) {
@@ -615,12 +890,12 @@ function loadKnownAccounts() {
     }
 }
 
-// Збереження списку облікових записів в localStorage
+// === Збереження списку облікових записів в localStorage ===
 function saveKnownAccounts() {
     localStorage.setItem('knownAccounts', JSON.stringify(knownAccounts));
 }
 
-// Додавання облікового запису до списку відомих
+// === Додавання облікового запису до списку відомих ===
 function addToKnownAccounts(account) {
     // Перевіряємо, чи є вже такий обліковий запис у списку
     const existingAccountIndex = knownAccounts.findIndex(acc => acc.id === account.id);
@@ -640,7 +915,7 @@ function addToKnownAccounts(account) {
     saveKnownAccounts();
 }
 
-// Оновлення випадаючого меню з обліковими записами
+// === Оновлення випадаючого меню з обліковими записами ===
 function updateAccountsDropdown() {
     const dropdownContent = document.querySelector('.dropdown-content');
     if (!dropdownContent) return;
@@ -734,7 +1009,7 @@ function updateAccountsDropdown() {
     dropdownContent.appendChild(addLoginLink);
 }
 
-// Переключення на інший обліковий запис
+// === Переключення на інший обліковий запис ===
 function switchAccount(account) {
     // Перешкоджаємо вспливанню події кліку
     event.stopPropagation();

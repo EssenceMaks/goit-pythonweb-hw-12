@@ -57,7 +57,10 @@
     
     // Додаємо інформацію про токен для налагодження
     document.addEventListener('DOMContentLoaded', function() {
-      console.log('Cookie є:', document.cookie.includes('access_token'));
+      // Проверяем наличие токена с учетом возможного префикса Bearer
+      const tokenMatch = document.cookie.match(/access_token=([^;]*)/); 
+      const hasAccessToken = tokenMatch ? true : false;
+      console.log('Cookie є:', hasAccessToken);
       
       if (typeof authorizedFetch === 'function') {
         console.log('authorizedFetch успешно загружен');

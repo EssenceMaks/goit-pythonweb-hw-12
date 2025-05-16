@@ -113,5 +113,8 @@ window.authorizedFetch = authorizedFetch;
 // Проверяем наличие jwt при загрузке страницы
 document.addEventListener('DOMContentLoaded', function() {
   console.log('auth.js загружен');
-  console.log('JWT token в cookies:', document.cookie.includes('access_token'));
+  // Проверяем наличие токена с учетом возможного префикса Bearer
+  const tokenMatch = document.cookie.match(/access_token=([^;]*)/); 
+  const hasAccessToken = tokenMatch ? true : false;
+  console.log('JWT token в cookies:', hasAccessToken);
 });
