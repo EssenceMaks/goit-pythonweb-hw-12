@@ -741,51 +741,42 @@ async def accounts_status(user_ids: List[int] = Body(...), access_token: Optiona
             users_to_log.append(uid)
     
     print("\nСтатусы аккаунтов в knownAccounts:")
-    print("-" * 95)
-    print(f"{'ID':<5} | {'Email':<25} | {'Role':<10} | {'Status':<10} | {'Redis /me':<10} | {'Recent Login':<12} | Описание")
-    print("-" * 95)
-    
-    # Логируем пользователей с данными в Redis /me или недавно логинившихся
+    print("-" * 80)
+    print(f"{'ID':<5} | {'Email':<25} | {'Role':<10} | {'Status':<10} | {'Recent Login':<12} | Описание")
+    print("-" * 80)
+
     for uid in users_to_log:
-        # Проверяем наличие refresh_token в Redis
         refresh_token_data = get_refresh_token(uid)
         is_active = is_user_active(uid)
-        me_data = get_cached_user_data(uid)
-        
+        recent_login = is_recent_login(uid)
         user_email = users_info.get(uid, {}).get("email", "unknown")
         user_role = users_info.get(uid, {}).get("role", "unknown")
-        
-        # Проверяем наличие Redis /me
-        redis_me_status = "Active" if me_data else "TimeOut"
-        
-        # Проверяем недавний логин
-        recent_login = is_recent_login(uid)
         recent_login_status = "Yes" if recent_login else "No"
-        
-        # Текущий пользователь - проверяем наличие refresh_token в Redis
+
+        # Определяем статус и описание (НЕ меняем бизнес-логику, только логи)
         if current_user_id and int(uid) == int(current_user_id):
             if refresh_token_data:
-                result[uid] = "green"
+                status = "green"
                 status_desc = "Текущий пользователь с refresh_token (зеленая точка)"
             else:
-                result[uid] = "yellow"
+                status = "yellow"
                 status_desc = "Текущий пользователь без refresh_token (желтая точка)"
         elif refresh_token_data:
-            # Зеленая точка - есть активный refresh_token
-            result[uid] = "green"
+            status = "green"
             status_desc = "Есть refresh_token (зеленая точка)"
         elif is_active:
-            # Желтая точка - access_token еще валиден, но refresh_token удален
-            result[uid] = "yellow"
+            status = "yellow"
             status_desc = "Активен, но без refresh_token (желтая точка)"
+        elif recent_login:
+            status = "yellow"
+            status_desc = "Недавно логинился (желтая точка)"
         else:
-            # Серая точка - оба токена истекли
-            result[uid] = "gray"
+            status = "gray"
             status_desc = "Неактивен (серая точка)"
-        
-        print(f"{uid:<5} | {user_email[:25]:<25} | {user_role:<10} | {result[uid]:<10} | {redis_me_status:<10} | {recent_login_status:<12} | {status_desc}")
-    
-    print("-" * 95)
+
+        print(f"{uid:<5} | {user_email[:25]:<25} | {user_role:<10} | {status:<10} | {recent_login_status:<12} | {status_desc}")
+
+    print("-" * 80)
     print("")
     
     # Возвращаем результат для всех запрошенных ID
@@ -1004,46 +995,49 @@ async def switch_account(
         user_to_switch = get_user_by_id(db, user_id)
         if not user_to_switch:
             return RedirectResponse(url="/login", status_code=303)
-        
+
         # Проверяем текущего пользователя из access_token
         current_user_id = None
+        current_user_email = None
         if access_token:
             try:
-                # Декодируем JWT токен
                 payload = jwt.decode(access_token, SECRET_KEY, algorithms=[ALGORITHM])
                 current_user_id = payload.get("id")
+                current_user_email = payload.get("email")
             except JWTError:
                 pass
-        
-        # Проверяем статус токенов для пользователя, на которого переключаемся
+
+        # Получаем email целевого пользователя
+        target_email = user_to_switch.email
+
         from redis_client import get_refresh_token, is_user_active, delete_refresh_token
         target_refresh_token = get_refresh_token(user_id)
         is_target_active = is_user_active(user_id)
-        
-        # Если есть текущий пользователь и он отличается от целевого, удаляем его refresh_token
-        # Делаем это ДО проверки на серую точку, чтобы refresh токен удалялся в любом случае
-        print(f"\n=== Переключение аккаунта ===\nТекущий пользователь: ID={current_user_id}\nЦелевой пользователь: ID={user_id}")
-        
-        # Проверяем наличие refresh_token для текущего пользователя
+
+        print(f"\n=== Переключение аккаунта ===")
+        print(f"Текущий пользователь: email={current_user_email} id={current_user_id}")
+        print(f"Целевой пользователь: email={target_email} id={user_id}")
+
         current_refresh_token = get_refresh_token(current_user_id) if current_user_id else None
         print(f"Refresh token текущего пользователя: {'ЕСТЬ' if current_refresh_token else 'ОТСУТСТВУЕТ'}")
-        
-        if current_user_id and int(current_user_id) != int(user_id):
-            # Всегда удаляем refresh_token текущего пользователя при переключении
-            print(f"[ВАЖНО] Удаляем refresh_token для пользователя ID={current_user_id} перед переключением")
+
+        # Всегда удаляем refresh_token текущего пользователя при переключении, если email отличается
+        if current_user_email and current_user_email != target_email:
+            print(f"[ВАЖНО] Удаляем refresh_token для пользователя email={current_user_email} (id={current_user_id}) перед переключением")
             result = delete_refresh_token(current_user_id)
             print(f"Результат удаления refresh_token: {result}")
-            
-            # Проверяем, что refresh_token действительно удален
             after_delete = get_refresh_token(current_user_id)
             print(f"Refresh token после удаления: {'ВСЕ ЕЩЕ СУЩЕСТВУЕТ!' if after_delete else 'УСПЕШНО УДАЛЕН'}")
+        elif current_user_email == target_email:
+            print(f"Не требуется удалять refresh_token, так как текущий пользователь совпадает с целевым (email совпадает)")
         else:
-            print(f"Не требуется удалять refresh_token, так как текущий пользователь совпадает с целевым или отсутствует")
-        
+            print(f"Не требуется удалять refresh_token, так как текущий пользователь отсутствует (нет access token)")
+
         # Если переходим на аккаунт с серой точкой (оба токена истекли), перенаправляем на логин
         if not target_refresh_token and not is_target_active:
+            print("Целевой аккаунт неактивен (серый статус): редирект на логин.")
             return RedirectResponse(url=f"/login?email={user_to_switch.email}", status_code=303)
-        
+
         # Данные пользователя для токенов
         user_data = {
             "id": user_to_switch.id,
@@ -1051,31 +1045,29 @@ async def switch_account(
             "email": user_to_switch.email,
             "role": user_to_switch.role or "user"
         }
-        
+
         # Создаем access_token для JWT-аутентификации
         access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
         new_access_token = create_access_token(
             data={
-                "id": user_to_switch.id, 
+                "id": user_to_switch.id,
                 "role": user_to_switch.role or "user",
                 "email": user_to_switch.email
-            }, 
+            },
             expires_delta=access_token_expires
         )
-        
+
         # Создаем новый refresh_token для целевого аккаунта
         new_refresh_token, refresh_expires = create_refresh_token(user_to_switch.id)
-        
-        # Удаление refresh_token текущего пользователя уже произведено выше
-        
+
         # Сохраняем новый refresh_token в Redis для целевого аккаунта
         from redis_client import store_refresh_token
         store_refresh_token(user_to_switch.id, new_refresh_token, refresh_expires, user_data)
-        
+
         # Удаляем домен из email для URL если username это email
         clean_username = clean_username_for_url(user_to_switch.username)
         response = RedirectResponse(url=f"/{clean_username}_{user_to_switch.role or 'user'}/", status_code=303)
-        
+
         # Устанавливаем cookie с токенами
         response.set_cookie(
             key="access_token",
@@ -1085,7 +1077,7 @@ async def switch_account(
             path="/",
             samesite="lax"
         )
-        
+
         response.set_cookie(
             key="refresh_token",
             value=new_refresh_token,
@@ -1094,7 +1086,7 @@ async def switch_account(
             path="/",
             samesite="lax"
         )
-        
+
         return response
     finally:
         db.close()
