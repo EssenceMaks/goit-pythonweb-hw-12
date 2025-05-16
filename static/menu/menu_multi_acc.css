@@ -51,6 +51,9 @@
 .status-dot.dot-green {
   background: #4CAF50;
 }
+.status-dot.dot-yellow {
+  background: #FFC107;
+}
 .status-dot.dot-gray {
   background: #bbb;
 }

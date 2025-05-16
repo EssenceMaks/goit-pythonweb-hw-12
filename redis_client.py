@@ -1,6 +1,7 @@
 import os
 import redis
 import json
+import time
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
@@ -14,6 +15,106 @@ redis_client = redis.StrictRedis.from_url(REDIS_URL, decode_responses=True)
 REFRESH_TOKEN_PREFIX = "refresh_token:"
 USER_CACHE_PREFIX = "user_cache:"
 ACTIVE_USER_PREFIX = "active_user:"
+REDIS_VERSION_KEY = "server:version"  # Ключ для хранения версии Redis
+RECENT_LOGIN_PREFIX = "recent_login:"  # Ключ для хранения времени последнего логина
+
+# Функции для управления версией Redis
+def set_redis_version():
+    """Устанавливает новую версию Redis при запуске сервера"""
+    # Используем текущее время в миллисекундах как уникальную версию
+    version = str(int(time.time() * 1000))
+    redis_client.set(REDIS_VERSION_KEY, version)
+    print(f"\nУстановлена новая версия Redis: {version}\n")
+    return version
+
+def get_redis_version():
+    """Получает текущую версию Redis"""
+    version = redis_client.get(REDIS_VERSION_KEY)
+    if not version:
+        # Если версия не найдена, устанавливаем новую
+        version = set_redis_version()
+    return version
+
+def check_token_version(token_version):
+    """Проверяет, совпадает ли версия в токене с текущей версией Redis"""
+    current_version = get_redis_version()
+    return token_version == current_version
+
+# Функции для работы с недавно залогиненными аккаунтами
+def track_user_login(user_id, user_data=None):
+    """Записывает время последнего логина пользователя"""
+    key = f"{RECENT_LOGIN_PREFIX}{user_id}"
+    
+    # Записываем текущее время и данные пользователя
+    data = {
+        "last_login": datetime.utcnow().isoformat()
+    }
+    
+    # Если есть дополнительные данные, добавляем их
+    if user_data:
+        if isinstance(user_data, dict):
+            for key, value in user_data.items():
+                if isinstance(value, dict):
+                    data[key] = json.dumps(value)
+                else:
+                    data[key] = value
+    
+    # Сохраняем в Redis на 6 часов
+    ttl = 6 * 60 * 60  # 6 часов в секундах
+    redis_client.hmset(key, data)
+    redis_client.expire(key, ttl)
+    
+    return True
+
+def get_recent_logins(hours=6):
+    """Получает список пользователей, которые логинились в течение последних N часов"""
+    recent_users = []
+    
+    # Получаем все ключи с префиксом RECENT_LOGIN_PREFIX
+    for key in redis_client.scan_iter(f"{RECENT_LOGIN_PREFIX}*"):
+        user_id = key.split(":", 1)[1]
+        data = redis_client.hgetall(key)
+        
+        if data and "last_login" in data:
+            # Добавляем пользователя в список
+            recent_users.append(int(user_id))
+    
+    return recent_users
+
+def is_recent_login(user_id):
+    """Проверяет, логинился ли пользователь недавно"""
+    key = f"{RECENT_LOGIN_PREFIX}{user_id}"
+    return redis_client.exists(key)
+
+# Функция для очистки Redis при запуске
+def clear_redis_keys():
+    """Очищает все ключи в Redis, связанные с токенами и кэшем"""
+    try:
+        # Удаляем все ключи, связанные с refresh_token
+        for key in redis_client.scan_iter(f"{REFRESH_TOKEN_PREFIX}*"):
+            redis_client.delete(key)
+        
+        # Удаляем все ключи, связанные с обратным соответствием token_to_user
+        for key in redis_client.scan_iter("token_to_user:*"):
+            redis_client.delete(key)
+        
+        # Удаляем все ключи, связанные с кэшем пользователей
+        for key in redis_client.scan_iter(f"{USER_CACHE_PREFIX}*"):
+            redis_client.delete(key)
+        
+        # Удаляем все ключи, связанные с активными пользователями
+        for key in redis_client.scan_iter(f"{ACTIVE_USER_PREFIX}*"):
+            redis_client.delete(key)
+        
+        # Удаляем все ключи, связанные с сессиями (для обратной совместимости)
+        for key in redis_client.scan_iter("user_session:*"):
+            redis_client.delete(key)
+        
+        print("Redis keys cleared successfully")
+        return True
+    except Exception as e:
+        print(f"Error clearing Redis keys: {e}")
+        return False
 
 # Функции для работы с refresh_token
 def store_refresh_token(user_id, refresh_token, expires_at, user_data=None):

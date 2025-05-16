@@ -21,7 +21,7 @@ import re
 # Добавляем импорт роутеров
 from routers import contacts, groups, db_utils, email_verification, users
 from routers.users_sessions import router as sessions_router
-from routers.auth import router as auth_router
+from routers.jwt_auth import router as auth_router
 from database import SessionLocal, engine, Base, is_render_environment, is_docker_environment
 from crud import get_user_by_username, update_user_role, get_user_by_id
 import models
@@ -30,7 +30,7 @@ from dotenv import load_dotenv
 # Redis session utility
 from redis_client import set_user_session
 # Импортируем функции из auth.py
-from auth import pwd_context, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES, SECRET_KEY, ALGORITHM
+from auth import pwd_context, create_access_token, create_refresh_token, ACCESS_TOKEN_EXPIRE_MINUTES, SECRET_KEY, ALGORITHM
 # Добавляем импорт нашей новой функции отправки email
 from utils_email_verif import send_verification_email, send_password_reset_email
 # Импортируем функции для rate limiting
@@ -41,6 +41,26 @@ load_dotenv()
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Функция для очистки Redis и валидации токенов при запуске
+def clear_redis_on_startup():
+    # Импортируем функции для работы с Redis
+    from redis_client import clear_redis_keys, set_redis_version
+    
+    # Очищаем все ключи в Redis при запуске
+    print("\n\nОчистка Redis при запуске приложения...")
+    success = clear_redis_keys()
+    if success:
+        print("Все ключи Redis успешно очищены. Токены в браузере будут сброшены при следующем запросе.")
+    else:
+        print("Ошибка при очистке ключей Redis.")
+    
+    # Устанавливаем новую версию Redis
+    # Это позволит отклонять токены, созданные до перезапуска Redis
+    redis_version = set_redis_version()
+    print(f"Установлена новая версия Redis: {redis_version}")
+    print("Теперь все токены, созданные до перезапуска, будут считаться недействительными.")
+    print("\n")
 
 # Функция для создания базы данных, если она не существует
 def ensure_database_exists():
@@ -135,6 +155,10 @@ async def startup_db_and_tables():
         logger.info("Обнаружено окружение Render.com или Docker, ожидаем инициализацию внешних сервисов...")
         time.sleep(5)  # Даем время для инициализации внешних сервисов
     
+    # Очищаем Redis при запуске, чтобы избежать несоответствия токенов
+    logger.info("Очистка Redis при запуске...")
+    clear_redis_on_startup()
+    
     # Сначала проверяем существование базы данных и создаем её при необходимости
     logger.info("Проверка наличия базы данных...")
     database_created = ensure_database_exists()
@@ -228,25 +252,42 @@ async def startup_db_and_tables():
     except Exception as e:
         logger.error(f"Ошибка при работе с базой данных: {e}")
     
+    # Очистка Redis при запуске
+    try:
+        from redis_client import clear_redis_keys
+        clear_redis_keys()
+        logger.info("Ключи Redis успешно очищены")
+    except Exception as e:
+        logger.error(f"Ошибка при очистке ключей Redis: {e}")
+    
     # Инициализация rate limiter
     try:
         await init_limiter()
     except Exception as e:
         logger.error(f"Ошибка при инициализации rate limiter: {e}")
         logger.info("Приложение продолжит работу без ограничения запросов (rate limiting)")
+    
 
-# Настройка сессий
-app.add_middleware(SessionMiddleware, secret_key=os.getenv("SECRET_KEY", "default_secret_key"))
+# JWT аутентификация используется вместо сессий
 
 # Настройка шаблонов
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
-# Функция для обработки имени пользователя для URL (удаление домена email)
+# Функция для очистки имени пользователя для URL
 def clean_username_for_url(username: str) -> str:
+    """Очищает имя пользователя для использования в URL"""
+    # Если это email, удаляем домен
     if '@' in username:
-        return username.split('@')[0]  # Берем только часть до @
+        username = username.split('@')[0]
+    
+    # Удаляем специальные символы
+    import re
+    username = re.sub(r'[^\w\d]', '', username)
+    
     return username
+
+
 
 # Функция для получения токена из cookie
 async def get_token_from_cookie(access_token: Optional[str] = Cookie(None)):
@@ -263,17 +304,30 @@ async def get_token_from_cookie(access_token: Optional[str] = Cookie(None)):
 from fastapi.responses import HTMLResponse
 
 @app.get("/", response_class=HTMLResponse)
-async def root(request: Request):
+async def root(request: Request, token: Optional[str] = Depends(get_token_from_cookie)):
     try:
         logger.info("[ROOT] Accessed / endpoint.")
-        logger.info(f"[ROOT] Session contents: {dict(request.session) if hasattr(request, 'session') else 'No session'}")
         logger.info(f"[ROOT] Request cookies: {request.cookies}")
-        user = request.session.get("user")
-        if user and "username" in user:
-            role = user.get("role", "user")
-            clean_username = clean_username_for_url(user['username'])
-            logger.info(f"[ROOT] Authenticated user found: {user['username']} with role {role}")
-            return RedirectResponse(url=f"/{clean_username}_{role}/", status_code=303)
+        
+        # Если токен есть, декодируем его для получения данных пользователя
+        if token:
+            try:
+                # Декодируем JWT токен
+                payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+                email = payload.get("email")
+                user_id = payload.get("id")
+                role = payload.get("role", "user")
+                
+                if email:
+                    # Получаем username из email для URL
+                    clean_username = clean_username_for_url(email)
+                    logger.info(f"[ROOT] Authenticated user found: {email} with role {role}")
+                    return RedirectResponse(url=f"/{clean_username}_{role}/", status_code=303)
+            except JWTError:
+                # Если токен невалидный, перенаправляем на страницу входа
+                logger.info("[ROOT] Invalid token, redirecting to login")
+                pass
+        
         logger.info("[ROOT] No authenticated user, returning login.html")
         return templates.TemplateResponse(
             "login.html",
@@ -291,13 +345,14 @@ async def root(request: Request):
 from fastapi.responses import HTMLResponse
 
 @app.get("/login", response_class=HTMLResponse)
-async def login(request: Request, email: str = None):
+async def login(request: Request, email: str = None, password_reset_success: bool = False):
     try:
         logger.info("[LOGIN] Accessed /login endpoint.")
-        logger.info(f"[LOGIN] Session contents: {dict(request.session) if hasattr(request, 'session') else 'No session'}")
         logger.info(f"[LOGIN] Request cookies: {request.cookies}")
-        password_reset_success = request.session.pop("password_reset_success", False)
+        
+        # Проверяем наличие параметра в URL вместо использования сессии
         logger.info(f"[LOGIN] password_reset_success: {password_reset_success}")
+        
         return templates.TemplateResponse(
             "login.html",
             {
@@ -331,35 +386,48 @@ async def login_post(request: Request, username: str = Form(...), password: str 
             # Генерируем уникальный ID для суперадмина если он не найден в БД
             superadmin_id = superadmin_user.id if superadmin_user else -1
             
-            # Сохраняем данные суперадмина в сессии с валидным ID
-            user_session_data = {
+            # Данные пользователя для токена
+            user_data = {
                 "id": superadmin_id,
                 "username": username,
                 "email": username,
                 "role": "superadmin"
             }
-            request.session["user"] = user_session_data
-            # Сохраняем сессию в Redis
-            set_user_session(superadmin_id, user_session_data, ttl=1800)
             
-            # Создаем JWT-токен для API-запросов суперадмина
+            # Создаем access_token для JWT-аутентификации
             access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
             access_token = create_access_token(
-                data={"sub": username, "id": superadmin_id, "role": "superadmin", "email": username}, 
+                data={"id": superadmin_id, "role": "superadmin", "email": username}, 
                 expires_delta=access_token_expires
             )
+            
+            # Создаем refresh_token
+            refresh_token, refresh_expires = create_refresh_token(superadmin_id)
+            
+            # Сохраняем refresh_token в Redis
+            from redis_client import store_refresh_token
+            store_refresh_token(superadmin_id, refresh_token, refresh_expires, user_data)
             
             # Удаляем домен из email для URL
             clean_username = clean_username_for_url(username)
             response = RedirectResponse(url=f"/{clean_username}_superadmin/", status_code=303)
             
-            # Устанавливаем cookie с токеном для суперадмина (без префикса Bearer)
+            # Устанавливаем cookie с токенами
             response.set_cookie(
                 key="access_token",
                 value=access_token,
                 httponly=True,
-                max_age=1800,  # 30 минут в секундах
-                path="/",  # Важно - токен будет доступен для всех путей
+                max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+                path="/",
+                samesite="lax"
+            )
+            
+            response.set_cookie(
+                key="refresh_token",
+                value=refresh_token,
+                httponly=True,
+                max_age=60 * 60 * 24 * 30,  # 30 дней
+                path="/",
                 samesite="lax"
             )
             
@@ -371,35 +439,51 @@ async def login_post(request: Request, username: str = Form(...), password: str 
             if not user.is_verified:
                 return templates.TemplateResponse("login.html", {"request": request, "error": "Пожалуйста, подтвердите ваш email перед входом"})
             
-            # Сохраняем данные пользователя в сессии
-            user_session_data = {
+            # Данные пользователя для токена
+            user_data = {
                 "id": user.id,
                 "username": user.username,
                 "email": user.email,
                 "role": user.role or "user"
             }
-            request.session["user"] = user_session_data
-            # Сохраняем сессию в Redis
-            set_user_session(user.id, user_session_data, ttl=1800)
             
-            # Создаем JWT-токен для API-запросов
+            # Создаем access_token для JWT-аутентификации
             access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
             access_token = create_access_token(
-                data={"sub": user.username, "id": user.id, "role": user.role or "user", "email": user.email}, 
+                data={"id": user.id, "role": user.role or "user", "email": user.email}, 
                 expires_delta=access_token_expires
             )
+            
+            # Создаем refresh_token
+            refresh_token, refresh_expires = create_refresh_token(user.id)
+            
+            # Сохраняем refresh_token в Redis
+            from redis_client import store_refresh_token, track_user_login
+            store_refresh_token(user.id, refresh_token, refresh_expires, user_data)
+            
+            # Отслеживаем логин пользователя (сохраняем на 6 часов)
+            track_user_login(user.id, user_data)
             
             # Удаляем домен из email для URL если username это email
             clean_username = clean_username_for_url(user.username)
             response = RedirectResponse(url=f"/{clean_username}_{user.role or 'user'}/", status_code=303)
             
-            # Устанавливаем cookie с токеном (без префикса Bearer)
+            # Устанавливаем cookie с токенами
             response.set_cookie(
                 key="access_token",
                 value=access_token,
                 httponly=True,
-                max_age=1800,  # 30 минут в секундах
-                path="/",  # Важно - токен будет доступен для всех путей
+                max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+                path="/",
+                samesite="lax"
+            )
+            
+            response.set_cookie(
+                key="refresh_token",
+                value=refresh_token,
+                httponly=True,
+                max_age=60 * 60 * 24 * 30,  # 30 дней
+                path="/",
                 samesite="lax"
             )
             
@@ -416,36 +500,124 @@ def signup_get(request: Request):
 @app.post("/signup", response_class=HTMLResponse)
 def signup_post(request: Request, username: str = Form(...), email: str = Form(...), password: str = Form(...)):
     # TODO: Зарегистрировать пользователя в БД
-    request.session["user"] = {"username": username, "role": "user"}
-    return RedirectResponse(f"/{username}_user/", status_code=302)
+    db = SessionLocal()
+    try:
+        # Создаем нового пользователя
+        from crud import create_user
+        new_user = create_user(db, username=username, email=email, password=password)
+        
+        if new_user:
+            # Создаем access_token для JWT-аутентификации
+            access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+            access_token = create_access_token(
+                data={"id": new_user.id, "role": "user", "email": email}, 
+                expires_delta=access_token_expires
+            )
+            
+            # Создаем refresh_token
+            refresh_token, refresh_expires = create_refresh_token(new_user.id)
+            
+            # Сохраняем refresh_token в Redis
+            user_data = {
+                "id": new_user.id,
+                "username": username,
+                "email": email,
+                "role": "user"
+            }
+            from redis_client import store_refresh_token
+            store_refresh_token(new_user.id, refresh_token, refresh_expires, user_data)
+            
+            # Перенаправляем на страницу пользователя
+            response = RedirectResponse(f"/{username}_user/", status_code=303)
+            
+            # Устанавливаем cookie с токенами
+            response.set_cookie(
+                key="access_token",
+                value=access_token,
+                httponly=True,
+                max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+                path="/",
+                samesite="lax"
+            )
+            
+            response.set_cookie(
+                key="refresh_token",
+                value=refresh_token,
+                httponly=True,
+                max_age=60 * 60 * 24 * 30,  # 30 дней
+                path="/",
+                samesite="lax"
+            )
+            
+            return response
+        else:
+            return templates.TemplateResponse("signup.html", {"request": request, "error": "Ошибка при регистрации пользователя"})
+    finally:
+        db.close()
 
 @app.get("/{username}_{role}/", response_class=HTMLResponse)
 def user_dashboard(
     request: Request, 
     username: str, 
     role: str,
-    token: Optional[str] = Depends(get_token_from_cookie)
+    access_token: Optional[str] = Cookie(None)
 ):
-    user = request.session.get("user")
-    # Проверка на соответствие пользователя в сессии
-    # Нам нужно сравнить часть до @ в сессионном имени пользователя
-    if not user:
+    # Проверяем наличие токена в cookie
+    if not access_token:
+        logger.error(f"[USER_DASHBOARD] No access_token in cookies")
         return RedirectResponse("/login")
     
-    session_clean_username = clean_username_for_url(user["username"])
-    if session_clean_username != username or user["role"] != role:
+    try:
+        # Декодируем JWT токен
+        payload = jwt.decode(access_token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_email = payload.get("email")
+        user_id = payload.get("id")
+        user_role = payload.get("role", "user")
+        
+        logger.info(f"[USER_DASHBOARD] Decoded token: email={user_email}, id={user_id}, role={user_role}")
+        
+        if not user_email:
+            logger.error(f"[USER_DASHBOARD] No email in token payload")
+            return RedirectResponse("/login")
+        
+        # Проверяем соответствие URL и данных из токена
+        token_clean_username = clean_username_for_url(user_email.split('@')[0] if '@' in user_email else user_email)
+        logger.info(f"[USER_DASHBOARD] URL username={username}, token username={token_clean_username}, URL role={role}, token role={user_role}")
+        
+        # Более гибкая проверка соответствия URL и данных из токена
+        if token_clean_username != username or user_role != role:
+            logger.warning(f"[USER_DASHBOARD] URL mismatch: expected {token_clean_username}_{user_role}, got {username}_{role}")
+            # Перенаправляем на правильный URL вместо страницы логина
+            return RedirectResponse(f"/{token_clean_username}_{user_role}/")
+        
+        # Создаем объект пользователя для шаблона
+        user = {
+            "id": user_id,
+            "username": user_email,  # Используем email вместо username
+            "email": user_email,
+            "role": user_role
+        }
+        
+        # Попробуем получить дополнительные данные из кэша
+        from redis_client import get_cached_user_data
+        cached_data = get_cached_user_data(user_id)
+        if cached_data and isinstance(cached_data, dict):
+            # Обновляем данные пользователя из кэша
+            user.update(cached_data)
+        
+        # Выводим отладочную информацию о токене в консоль
+        print(f"Token from cookie: {access_token[:10]}..." if access_token else "No token")
+        
+        # TODO: Получить контакты только этого пользователя
+        # contacts = crud.get_contacts_for_user(username)
+        return templates.TemplateResponse("index.html", {
+            "request": request,
+            "user": user,
+            # "contacts": contacts,
+        })
+    except JWTError:
+        # Если токен невалиден, перенаправляем на страницу входа
         return RedirectResponse("/login")
-    
-    # Выводим отладочную информацию о токене в консоль
-    print(f"Token from cookie: {token[:10]}..." if token else "No token")
-    
-    # TODO: Получить контакты только этого пользователя
-    # contacts = crud.get_contacts_for_user(username)
-    return templates.TemplateResponse("index.html", {
-        "request": request,
-        "user": user,
-        # "contacts": contacts,
-    })
 
 @app.get("/current_user", response_class=HTMLResponse)
 def current_user(request: Request):
@@ -453,15 +625,37 @@ def current_user(request: Request):
     return templates.TemplateResponse("current_user.html", {"request": request})
 
 @app.get("/logout")
-def logout(request: Request):
-    from redis_client import delete_user_session
-    user = request.session.get("user")
-    if user and user.get("id"):
-        delete_user_session(user["id"])
-    request.session.clear()
+def logout(request: Request, access_token: Optional[str] = Cookie(None), refresh_token: Optional[str] = Cookie(None)):
+    try:
+        # Если есть токен, пытаемся получить из него user_id
+        if access_token:
+            try:
+                payload = jwt.decode(access_token, SECRET_KEY, algorithms=[ALGORITHM])
+                user_id = payload.get("id")
+                
+                if user_id:
+                    # Удаляем refresh_token из Redis
+                    from redis_client import delete_refresh_token
+                    delete_refresh_token(user_id)
+            except JWTError:
+                pass
+        
+        # Если есть refresh_token, получаем по нему user_id
+        if refresh_token:
+            from redis_client import get_user_by_refresh_token
+            user_id = get_user_by_refresh_token(refresh_token)
+            if user_id:
+                from redis_client import delete_refresh_token
+                delete_refresh_token(user_id)
+    except Exception as e:
+        print(f"Error during logout: {e}")
+    
     response = RedirectResponse("/login")
-    # Удаляем cookie с токеном
+    
+    # Удаляем все токены из cookie
     response.delete_cookie("access_token", path="/")
+    response.delete_cookie("refresh_token", path="/")
+    
     return response
 
 @app.post("/token")
@@ -490,12 +684,134 @@ from fastapi import Body
 from typing import List, Dict
 
 @app.post("/accounts/status")
-async def accounts_status(user_ids: List[int] = Body(...)):
-    from redis_client import get_user_session
+async def accounts_status(user_ids: List[int] = Body(...), access_token: Optional[str] = Cookie(None)):
+    from redis_client import get_refresh_token, is_user_active, get_cached_user_data, is_recent_login
     result = {}
-    for uid in user_ids:
-        session = get_user_session(uid)
-        result[uid] = "green" if session else "gray"
+    
+    # Получаем ID текущего пользователя из access_token
+    current_user_id = None
+    current_user_email = None
+    current_user_role = None
+    token_valid = False
+    
+    if access_token:
+        try:
+            payload = jwt.decode(access_token, SECRET_KEY, algorithms=[ALGORITHM])
+            current_user_id = payload.get("id")
+            current_user_email = payload.get("email")
+            current_user_role = payload.get("role", "user")
+            
+            # Проверяем, есть ли в Redis данные для этого пользователя
+            # Если Redis был очищен, но токены в браузере остались, токен будет считаться невалидным
+            refresh_token_data = get_refresh_token(current_user_id)
+            if not refresh_token_data:
+                print(f"\nПредупреждение: Токен в браузере есть, но в Redis нет соответствующего refresh_token.")
+                print(f"Возможно, Redis был очищен при перезапуске Docker. Пользователю нужно будет перелогиниться.\n")
+            else:
+                token_valid = True
+                print(f"\nТекущий пользователь: ID={current_user_id}, Email={current_user_email}, Роль={current_user_role}\n")
+        except JWTError:
+            pass
+    
+    # Получаем информацию о всех запрошенных пользователях
+    db = SessionLocal()
+    try:
+        # Создаем словарь с информацией о пользователях
+        users_info = {}
+        for uid in user_ids:
+            user = db.query(models.User).filter(models.User.id == uid).first()
+            if user:
+                users_info[uid] = {
+                    "username": user.username,
+                    "email": user.email,
+                    "role": user.role
+                }
+    finally:
+        db.close()
+    
+    # Убираем дубликаты из user_ids
+    unique_user_ids = list(dict.fromkeys(user_ids))
+    
+    # Проверяем, какие пользователи имеют данные в Redis /me или недавно логинились
+    users_to_log = []
+    for uid in unique_user_ids:
+        me_data = get_cached_user_data(uid)
+        recent_login = is_recent_login(uid)
+        if me_data or recent_login or (current_user_id and int(uid) == int(current_user_id)):
+            users_to_log.append(uid)
+    
+    print("\nСтатусы аккаунтов в knownAccounts:")
+    print("-" * 95)
+    print(f"{'ID':<5} | {'Email':<25} | {'Role':<10} | {'Status':<10} | {'Redis /me':<10} | {'Recent Login':<12} | Описание")
+    print("-" * 95)
+    
+    # Логируем пользователей с данными в Redis /me или недавно логинившихся
+    for uid in users_to_log:
+        # Проверяем наличие refresh_token в Redis
+        refresh_token_data = get_refresh_token(uid)
+        is_active = is_user_active(uid)
+        me_data = get_cached_user_data(uid)
+        
+        user_email = users_info.get(uid, {}).get("email", "unknown")
+        user_role = users_info.get(uid, {}).get("role", "unknown")
+        
+        # Проверяем наличие Redis /me
+        redis_me_status = "Active" if me_data else "TimeOut"
+        
+        # Проверяем недавний логин
+        recent_login = is_recent_login(uid)
+        recent_login_status = "Yes" if recent_login else "No"
+        
+        # Текущий пользователь - проверяем наличие refresh_token в Redis
+        if current_user_id and int(uid) == int(current_user_id):
+            if refresh_token_data:
+                result[uid] = "green"
+                status_desc = "Текущий пользователь с refresh_token (зеленая точка)"
+            else:
+                result[uid] = "yellow"
+                status_desc = "Текущий пользователь без refresh_token (желтая точка)"
+        elif refresh_token_data:
+            # Зеленая точка - есть активный refresh_token
+            result[uid] = "green"
+            status_desc = "Есть refresh_token (зеленая точка)"
+        elif is_active:
+            # Желтая точка - access_token еще валиден, но refresh_token удален
+            result[uid] = "yellow"
+            status_desc = "Активен, но без refresh_token (желтая точка)"
+        else:
+            # Серая точка - оба токена истекли
+            result[uid] = "gray"
+            status_desc = "Неактивен (серая точка)"
+        
+        print(f"{uid:<5} | {user_email[:25]:<25} | {user_role:<10} | {result[uid]:<10} | {redis_me_status:<10} | {recent_login_status:<12} | {status_desc}")
+    
+    print("-" * 95)
+    print("")
+    
+    # Возвращаем результат для всех запрошенных ID
+    for uid in unique_user_ids:
+        if uid not in result:
+            # Проверяем наличие refresh_token в Redis
+            refresh_token_data = get_refresh_token(uid)
+            is_active = is_user_active(uid)
+            recent_login = is_recent_login(uid)
+            
+            if current_user_id and int(uid) == int(current_user_id):
+                result[uid] = "green"
+            elif refresh_token_data:
+                result[uid] = "green"
+            elif is_active:
+                result[uid] = "yellow"
+            # Если недавно логинился, но не активен - желтая точка
+            elif recent_login:
+                result[uid] = "yellow"
+                # Добавляем в лог
+                user_email = users_info.get(uid, {}).get("email", "unknown")
+                user_role = users_info.get(uid, {}).get("role", "unknown")
+                print(f"{uid:<5} | {user_email[:25]:<25} | {user_role:<10} | yellow     | TimeOut    | Yes          | Недавно логинился (желтая точка)")
+            else:
+                result[uid] = "gray"
+    
     return result
 
 @app.get("/auth/status")
@@ -531,19 +847,33 @@ async def change_user_role(
     token: Optional[str] = Depends(get_token_from_cookie)
 ):
     # Проверяем, авторизован ли пользователь и имеет ли права
-    if not request.session.get("user") or request.session["user"].get("role") not in ["admin", "superadmin"]:
+    if not token:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Недостаточно прав для изменения роли пользователя",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Необходима аутентификация",
         )
     
-    # Получаем ID текущего пользователя из сессии
-    current_user_id = request.session["user"].get("id")
-    current_user_role = request.session["user"].get("role")
-    
-    # Логирование для отладки
-    print(f"Текущий пользователь: id={current_user_id}, роль={current_user_role}")
-    print(f"Изменение роли для пользователя с ID={user_id}, новая роль={role_data.get('role')}")
+    try:
+        # Декодируем JWT токен
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        current_user_id = payload.get("id")
+        current_user_role = payload.get("role")
+        
+        # Проверяем права пользователя
+        if not current_user_role or current_user_role not in ["admin", "superadmin"]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Недостаточно прав для изменения роли пользователя",
+            )
+        
+        # Логирование для отладки
+        print(f"Текущий пользователь: id={current_user_id}, роль={current_user_role}")
+        print(f"Изменение роли для пользователя с ID={user_id}, новая роль={role_data.get('role')}")
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Неверный токен аутентификации",
+        )
     
     # Проверяем, не пытается ли пользователь изменить свою собственную роль
     if str(current_user_id) == str(user_id):
@@ -593,13 +923,16 @@ async def change_user_role(
     finally:
         db.close()
 
-# Эндпоинт для переключения между аккаунтами
 @app.get("/switch_account/{user_id}", response_class=RedirectResponse)
 async def switch_account(
     request: Request,
     user_id: int,
-    token: Optional[str] = Depends(get_token_from_cookie)
+    access_token: Optional[str] = Cookie(None),
+    refresh_token: Optional[str] = Cookie(None)
 ):
+    print("\n" + "*" * 50)
+    print(f"*** Функция switch_account вызвана для user_id={user_id} ***")
+    print("*" * 50 + "\n")
     # Проверка на суперадмина (ID = -1)
     if user_id == -1:
         # Получаем данные суперадмина из переменных окружения
@@ -613,36 +946,53 @@ async def switch_account(
         if '@' not in superadmin_email:
             superadmin_email = 'superadmin@example.com'
         
-        # Сохраняем данные суперадмина в сессии
-        request.session["user"] = {
+        # Данные пользователя для токенов
+        user_data = {
             "id": -1,
             "username": superadmin_username,
             "email": superadmin_email,
             "role": "superadmin"
         }
         
-        # Создаем JWT-токен для API-запросов суперадмина
+        # Создаем access_token для JWT-аутентификации
         access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
         access_token = create_access_token(
             data={
-                "sub": superadmin_username, 
                 "id": -1, 
                 "role": "superadmin",
                 "email": superadmin_email
             }, 
             expires_delta=access_token_expires
         )
-                # Удаляем домен из email для URL
+        
+        # Создаем refresh_token
+        refresh_token, refresh_expires = create_refresh_token(-1)
+        
+        # Сохраняем refresh_token в Redis
+        from redis_client import store_refresh_token
+        store_refresh_token(-1, refresh_token, refresh_expires, user_data)
+        
+        # Удаляем домен из email для URL
         clean_username = clean_username_for_url(superadmin_username)
         response = RedirectResponse(url=f"/{clean_username}_superadmin/", status_code=303)
         
-        # Устанавливаем cookie с токеном для суперадмина
+        # Устанавливаем cookie с токенами
         response.set_cookie(
             key="access_token",
-            value=f"Bearer {access_token}",
+            value=access_token,
             httponly=True,
-            max_age=1800,  # 30 минут в секундах
-            path="/"
+            max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            path="/",
+            samesite="lax"
+        )
+        
+        response.set_cookie(
+            key="refresh_token",
+            value=refresh_token,
+            httponly=True,
+            max_age=60 * 60 * 24 * 30,  # 30 дней
+            path="/",
+            samesite="lax"
         )
         
         return response
@@ -655,19 +1005,57 @@ async def switch_account(
         if not user_to_switch:
             return RedirectResponse(url="/login", status_code=303)
         
-        # Сохраняем данные пользователя в сессии
-        request.session["user"] = {
+        # Проверяем текущего пользователя из access_token
+        current_user_id = None
+        if access_token:
+            try:
+                # Декодируем JWT токен
+                payload = jwt.decode(access_token, SECRET_KEY, algorithms=[ALGORITHM])
+                current_user_id = payload.get("id")
+            except JWTError:
+                pass
+        
+        # Проверяем статус токенов для пользователя, на которого переключаемся
+        from redis_client import get_refresh_token, is_user_active, delete_refresh_token
+        target_refresh_token = get_refresh_token(user_id)
+        is_target_active = is_user_active(user_id)
+        
+        # Если есть текущий пользователь и он отличается от целевого, удаляем его refresh_token
+        # Делаем это ДО проверки на серую точку, чтобы refresh токен удалялся в любом случае
+        print(f"\n=== Переключение аккаунта ===\nТекущий пользователь: ID={current_user_id}\nЦелевой пользователь: ID={user_id}")
+        
+        # Проверяем наличие refresh_token для текущего пользователя
+        current_refresh_token = get_refresh_token(current_user_id) if current_user_id else None
+        print(f"Refresh token текущего пользователя: {'ЕСТЬ' if current_refresh_token else 'ОТСУТСТВУЕТ'}")
+        
+        if current_user_id and int(current_user_id) != int(user_id):
+            # Всегда удаляем refresh_token текущего пользователя при переключении
+            print(f"[ВАЖНО] Удаляем refresh_token для пользователя ID={current_user_id} перед переключением")
+            result = delete_refresh_token(current_user_id)
+            print(f"Результат удаления refresh_token: {result}")
+            
+            # Проверяем, что refresh_token действительно удален
+            after_delete = get_refresh_token(current_user_id)
+            print(f"Refresh token после удаления: {'ВСЕ ЕЩЕ СУЩЕСТВУЕТ!' if after_delete else 'УСПЕШНО УДАЛЕН'}")
+        else:
+            print(f"Не требуется удалять refresh_token, так как текущий пользователь совпадает с целевым или отсутствует")
+        
+        # Если переходим на аккаунт с серой точкой (оба токена истекли), перенаправляем на логин
+        if not target_refresh_token and not is_target_active:
+            return RedirectResponse(url=f"/login?email={user_to_switch.email}", status_code=303)
+        
+        # Данные пользователя для токенов
+        user_data = {
             "id": user_to_switch.id,
             "username": user_to_switch.username,
             "email": user_to_switch.email,
             "role": user_to_switch.role or "user"
         }
         
-        # Создаем новый JWT-токен для API-запросов
+        # Создаем access_token для JWT-аутентификации
         access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-        access_token = create_access_token(
+        new_access_token = create_access_token(
             data={
-                "sub": user_to_switch.username, 
                 "id": user_to_switch.id, 
                 "role": user_to_switch.role or "user",
                 "email": user_to_switch.email
@@ -675,27 +1063,41 @@ async def switch_account(
             expires_delta=access_token_expires
         )
         
+        # Создаем новый refresh_token для целевого аккаунта
+        new_refresh_token, refresh_expires = create_refresh_token(user_to_switch.id)
+        
+        # Удаление refresh_token текущего пользователя уже произведено выше
+        
+        # Сохраняем новый refresh_token в Redis для целевого аккаунта
+        from redis_client import store_refresh_token
+        store_refresh_token(user_to_switch.id, new_refresh_token, refresh_expires, user_data)
+        
         # Удаляем домен из email для URL если username это email
         clean_username = clean_username_for_url(user_to_switch.username)
         response = RedirectResponse(url=f"/{clean_username}_{user_to_switch.role or 'user'}/", status_code=303)
         
-        # Устанавливаем cookie с токеном
+        # Устанавливаем cookie с токенами
         response.set_cookie(
             key="access_token",
-            value=f"Bearer {access_token}",
+            value=new_access_token,
             httponly=True,
-            max_age=1800,  # 30 минут в секундах
-            path="/"
+            max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            path="/",
+            samesite="lax"
+        )
+        
+        response.set_cookie(
+            key="refresh_token",
+            value=new_refresh_token,
+            httponly=True,
+            max_age=60 * 60 * 24 * 30,  # 30 дней
+            path="/",
+            samesite="lax"
         )
         
         return response
     finally:
         db.close()
-
-# Добавляем маршруты для восстановления пароля
-@app.get("/forgot", response_class=HTMLResponse)
-async def forgot_password_page(request: Request):
-    return templates.TemplateResponse("password_reset/forgot.html", {"request": request})
 
 
 @app.post("/forgot", response_class=HTMLResponse)
@@ -863,9 +1265,9 @@ async def reset_password_submit(
         db.commit()
         
         # Перенаправляем на страницу входа с сообщением об успешной смене пароля
-        response = RedirectResponse(url="/login")
+        # Вместо использования сессии, передаем параметр в URL
+        response = RedirectResponse(url="/login?password_reset_success=true")
         response.status_code = 303
-        request.session["password_reset_success"] = True
         return response
         
     except Exception as e:

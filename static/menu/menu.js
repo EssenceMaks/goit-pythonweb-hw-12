@@ -721,12 +721,12 @@ function updateAccountsDropdown() {
 
 // Добавление стилей для точек статуса
 function addStatusStyles() {
-  // Проверяем, есть ли уже стили
-  if (document.getElementById('account-status-styles')) return;
-  
-  const styleEl = document.createElement('style');
-  styleEl.id = 'account-status-styles';
-  styleEl.textContent = `
+    // Проверяем, есть ли уже стили
+    if (document.getElementById('account-status-styles')) return;
+    
+    const styleEl = document.createElement('style');
+    styleEl.id = 'account-status-styles';
+    styleEl.textContent = `
     .status-icon {
       display: inline-block;
       width: 10px;
@@ -746,9 +746,18 @@ function addStatusStyles() {
     .status-icon.unknown {
       background-color: #E0E0E0; /* Светло-серый */
     }
+    .status-dot.dot-green {
+      background-color: #4CAF50; /* Зеленый */
+    }
+    .status-dot.dot-yellow {
+      background-color: #FFC107; /* Желтый */
+    }
+    .status-dot.dot-gray {
+      background-color: #9E9E9E; /* Серый */
+    }
   `;
-  
-  document.head.appendChild(styleEl);
+    
+    document.head.appendChild(styleEl);
 }
 
 // Переключення на інший обліковий запис
@@ -817,6 +826,9 @@ async function updateAccountStatuses() {
     }
 }
 
+// Обновляем статусы аккаунтов каждые 30 секунд
+setInterval(updateAccountStatuses, 30000);
+
 // === Инициализация при загрузке страницы ===
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', function() {
@@ -835,6 +847,9 @@ document.addEventListener('DOMContentLoaded', function() {
         accountDropdown.addEventListener('click', function(e) {
             // Перешкоджаємо вспливанню події
             e.stopPropagation();
+            
+            // Обновляем статусы аккаунтов при каждом клике на выпадающий список
+            updateAccountStatuses();
             
             // Переключаємо видимість випадаючого меню
             const dropdownContent = this.querySelector('.dropdown-content');
@@ -958,12 +973,20 @@ function updateAccountsDropdown() {
                 avatarUrl = account.avatar_url;
             }
         } else {
-            // Обычные юзеры видят только свою аватарку и "зеленых"
-            if (isCurrentAccount || account.status === 'green') {
+            // Обычные юзеры видят только свою аватарку и аккаунты с зелеными и желтыми точками
+            if (isCurrentAccount || account.status === 'green' || account.status === 'yellow') {
                 if (account.avatar_url && typeof account.avatar_url === 'string' && account.avatar_url.length > 4) {
                     avatarUrl = account.avatar_url;
                 }
             }
+        }
+
+        // Определяем цвет статуса точки
+        let statusDotClass = 'dot-gray';
+        if (account.status === 'green') {
+            statusDotClass = 'dot-green';
+        } else if (account.status === 'yellow') {
+            statusDotClass = 'dot-yellow';
         }
 
         const accountItem = document.createElement('div');
@@ -973,7 +996,7 @@ function updateAccountsDropdown() {
           <div class="account-grid">
             <div class="avatar-cell">
               <img class="account-avatar" src="${avatarUrl}" alt="avatar">
-              <span class="status-dot ${account.status === 'green' ? 'dot-green' : 'dot-gray'}"></span>
+              <span class="status-dot ${statusDotClass}"></span>
               ${isCurrentAccount ? '<span class="checkmark">&#10003;</span>' : ''}
             </div>
             <div class="username-cell">${displayName}</div>
@@ -983,15 +1006,12 @@ function updateAccountsDropdown() {
         `;
         if (!isCurrentAccount) {
             accountItem.addEventListener('click', () => {
-                if (account.status === 'green') {
-                    switchAccount(account);
-                } else {
-                    let loginUrl = '/login';
-                    if (account.email) {
-                        loginUrl += '?email=' + encodeURIComponent(account.email);
-                    }
-                    window.location.href = loginUrl;
-                }
+                // Всегда вызываем функцию switchAccount для всех аккаунтов
+                // Это позволит удалять refresh_token текущего пользователя при переключении на любой аккаунт
+                console.log(`Вызываем switchAccount для аккаунта ID=${account.id}, статус=${account.status}`);
+                switchAccount(account);
+                
+                // На бэкенде функция switch_account сама перенаправит на логин при необходимости
             });
         }
         dropdownContent.appendChild(accountItem);
@@ -1013,6 +1033,14 @@ function updateAccountsDropdown() {
 function switchAccount(account) {
     // Перешкоджаємо вспливанню події кліку
     event.stopPropagation();
+    
+    // Добавляем логирование для отладки
+    console.log(`Переключение на аккаунт ID=${account.id}, статус=${account.status}`);
+    
+    // Если статус серый, выводим дополнительную информацию
+    if (account.status === 'gray') {
+        console.log(`Переключение на аккаунт с серой точкой (ID=${account.id}). Будет вызвана функция switch_account на бэкенде.`);
+    }
     
     // Тут відправляємо запит на сервер для переключення на вибраний обліковий запис
     window.location.href = `/switch_account/${account.id}`;

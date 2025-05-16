@@ -31,12 +31,22 @@ class TokenData:
         self.user_id = user_id
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None):
+    # Импортируем функцию для получения версии Redis
+    from redis_client import get_redis_version
+    
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     else:
         expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": expire})
+    
+    # Добавляем версию Redis в токен
+    redis_version = get_redis_version()
+    to_encode.update({
+        "exp": expire,
+        "redis_ver": redis_version  # Добавляем версию Redis в токен
+    })
+    
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
@@ -118,6 +128,16 @@ async def get_current_user(request: Request, token: Optional[str] = Depends(get_
         email: str = payload.get("email")
         user_id: int = payload.get("id")
         user_role: str = payload.get("role")
+        redis_version: str = payload.get("redis_ver")
+        
+        # Проверяем версию Redis, если она есть в токене
+        if redis_version:
+            from redis_client import check_token_version
+            if not check_token_version(redis_version):
+                print(f"Ошибка: Версия Redis в токене ({redis_version}) не совпадает с текущей версией")
+                print("Возможно, Redis был перезапущен. Токен считается недействительным.")
+                raise credentials_exception
+        
         print(f"Извлеченные данные: email={email}, id={user_id}, role={user_role}")
         
         if email is None:
